@@ -14,6 +14,8 @@ source .venv/bin/activate
 
 # --- deps ---
 echo "[aegispam] installing dependencies..."
+# shap's optional numba dep doesn't support Python 3.14 — pre-install without it
+pip install -q --no-deps shap==0.52.0
 pip install -q -r requirements.txt
 
 # --- env ---

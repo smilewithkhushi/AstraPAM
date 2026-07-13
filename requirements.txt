@@ -9,7 +9,11 @@ python-dotenv==1.0.1
 torch==2.13.0
 scikit-learn==1.9.0
 imbalanced-learn==0.14.2
-shap==0.52.0
+# shap is installed via script.sh with --no-deps (numba doesn't support Python 3.14)
+# these are shap's required deps that work fine on 3.14:
+slicer==0.0.8
+cloudpickle>=1.2.2
+tqdm>=4.27.0
 pandas==3.0.3
 numpy==2.5.1
 
