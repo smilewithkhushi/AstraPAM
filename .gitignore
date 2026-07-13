@@ -1,0 +1,52 @@
+# ── Secrets & environment ────────────────────────────────────────────────────
+.env
+*.key
+*.pem
+*.p12
+
+# ── Python runtime ────────────────────────────────────────────────────────────
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# ── Tooling caches ────────────────────────────────────────────────────────────
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ── Data & models (too large / not source) ───────────────────────────────────
+# CERT insider-threat dataset (download separately — see README)
+data/
+*.csv
+*.xlsx
+
+# Trained model artifacts
+*.pt
+*.pth
+*.pkl
+*.npy
+*.npz
+*.onnx
+
+# ── Database ──────────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+database/
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+
+# ── Internal research docs (not for public repo) ─────────────────────────────
+info/
