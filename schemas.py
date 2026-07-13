@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-DB_PATH = "database/aegispam.db"
+DB_PATH = os.getenv("AEGISPAM_DB", "database/aegispam.db")
 
 Decision = Literal["allow", "throttle", "step_up", "deny"]
 Severity = Literal["critical", "high", "medium", "low"]

@@ -13,6 +13,7 @@ app = FastAPI(title="Mock CBS", version="0")
 
 _accounts: dict[str, dict] = {}
 _ledger: list[dict] = []
+_cbs_actions: list[dict] = []
 _swift_actions: list[dict] = []
 
 
@@ -24,6 +25,11 @@ class ProvisionRequest(BaseModel):
 
 class LedgerRequest(BaseModel):
     action_id: str
+    amount: float
+
+
+class CbsActionRequest(BaseModel):
+    grant_id: str
     amount: float
 
 
@@ -82,6 +88,45 @@ def add_ledger_entry(req: LedgerRequest) -> dict:
 @app.get("/ledger")
 def get_ledger() -> list:
     return _ledger
+
+
+# --- CBS financial action (rate-cap enforced, creates matching ledger entry) ---
+
+@app.post("/actions/cbs", status_code=201)
+def cbs_action(req: CbsActionRequest) -> dict:
+    """Legitimate financial action through CBS — enforces throttle rate_cap if set."""
+    acct = _accounts.get(req.grant_id)
+    if not acct or not acct["active"]:
+        raise HTTPException(status_code=403, detail="No active grant for this grant_id")
+
+    if acct["rate_cap"] is not None and req.amount > acct["rate_cap"]:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Amount {req.amount} exceeds throttle cap {acct['rate_cap']}",
+        )
+
+    action_id = str(uuid.uuid4())
+    now = _now().isoformat()
+    action = {
+        "action_id": action_id,
+        "user_id": acct["user_id"],
+        "channel": "cbs",
+        "amount": req.amount,
+        "timestamp": now,
+    }
+    _cbs_actions.append(action)
+    _ledger.append({
+        "entry_id": str(uuid.uuid4()),
+        "action_id": action_id,
+        "amount": req.amount,
+        "timestamp": now,
+    })
+    return action
+
+
+@app.get("/cbs/actions")
+def get_cbs_actions() -> list:
+    return _cbs_actions
 
 
 # --- SWIFT-like channel (out-of-band, no ledger entry — the PNB pattern) ---

@@ -20,5 +20,6 @@ streamlit==1.59.2
 ruff==0.15.21
 
 # pqc (phase 4)
-# primary:  pip install liboqs-python  (requires cmake + C compiler)
-# fallback: pip install pqcrypto
+cryptography==45.0.5
+pqcrypto==0.4.0
+# liboqs-python is the reference-grade alternative; requires cmake + C compiler

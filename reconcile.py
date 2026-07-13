@@ -20,24 +20,25 @@ CBS_URL = os.getenv("CBS_URL", "http://localhost:8001")
 # ── sync ─────────────────────────────────────────────────────────────────────
 
 def sync_from_cbs() -> tuple[int, int]:
-    """Pull SWIFT-like actions and ledger entries from mock_cbs into SQLite.
+    """Pull all privileged actions and ledger entries from mock_cbs into SQLite.
 
-    Returns (swift_rows_added, ledger_rows_added).
+    Returns (actions_added, ledger_rows_added).
     Only inserts; never mutates existing rows (INSERT OR IGNORE).
     """
     swift_actions: list[dict] = httpx.get(f"{CBS_URL}/swift/actions", timeout=5).json()
-    ledger_entries: list[dict] = httpx.get(f"{CBS_URL}/ledger", timeout=5).json()
+    cbs_actions:   list[dict] = httpx.get(f"{CBS_URL}/cbs/actions",   timeout=5).json()
+    ledger_entries: list[dict] = httpx.get(f"{CBS_URL}/ledger",       timeout=5).json()
 
     con = sqlite3.connect(DB_PATH)
 
-    sw = 0
-    for a in swift_actions:
+    actions_added = 0
+    for a in (*swift_actions, *cbs_actions):
         cur = con.execute(
             "INSERT OR IGNORE INTO privileged_actions"
             " (action_id, user_id, channel, amount, timestamp) VALUES (?,?,?,?,?)",
             (a["action_id"], a["user_id"], a["channel"], a["amount"], a["timestamp"]),
         )
-        sw += cur.rowcount
+        actions_added += cur.rowcount
 
     le = 0
     for e in ledger_entries:
@@ -50,7 +51,7 @@ def sync_from_cbs() -> tuple[int, int]:
 
     con.commit()
     con.close()
-    return sw, le
+    return actions_added, le
 
 
 # ── core reconciliation ───────────────────────────────────────────────────────
