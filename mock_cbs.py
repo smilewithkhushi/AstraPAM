@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+
+_now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -44,7 +46,7 @@ def provision_account(req: ProvisionRequest) -> dict:
         "user_id": req.user_id,
         "rate_cap": req.rate_cap,
         "active": True,
-        "provisioned_at": datetime.utcnow().isoformat(),
+        "provisioned_at": _now().isoformat(),
     }
     return {"grant_id": req.grant_id, "active": True}
 
@@ -54,7 +56,7 @@ def revoke_account(grant_id: str) -> dict:
     if grant_id not in _accounts:
         raise HTTPException(status_code=404, detail="Grant not found")
     _accounts[grant_id]["active"] = False
-    _accounts[grant_id]["revoked_at"] = datetime.utcnow().isoformat()
+    _accounts[grant_id]["revoked_at"] = _now().isoformat()
     return {"grant_id": grant_id, "active": False}
 
 
@@ -71,7 +73,7 @@ def add_ledger_entry(req: LedgerRequest) -> dict:
         "entry_id": str(uuid.uuid4()),
         "action_id": req.action_id,
         "amount": req.amount,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": _now().isoformat(),
     }
     _ledger.append(entry)
     return entry
@@ -92,7 +94,7 @@ def swift_action(req: SwiftRequest) -> dict:
         "channel": "swift_like",
         "amount": req.amount,
         "description": req.description,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": _now().isoformat(),
     }
     _swift_actions.append(action)
     return action

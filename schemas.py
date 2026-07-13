@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
 
-DB_PATH = "aegispam.db"
+DB_PATH = "database/aegispam.db"
 
 Decision = Literal["allow", "throttle", "step_up", "deny"]
 Severity = Literal["critical", "high", "medium", "low"]
@@ -95,6 +96,9 @@ class CryptoArtifact(BaseModel):
 
 
 def init_db() -> None:
+    parent = os.path.dirname(DB_PATH)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     con = sqlite3.connect(DB_PATH)
     con.executescript("""
         CREATE TABLE IF NOT EXISTS ephemeral_grants (
