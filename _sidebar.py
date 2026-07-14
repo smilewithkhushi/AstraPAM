@@ -1,6 +1,9 @@
 """Shared constants used across all AegisPAM pages."""
 from __future__ import annotations
 
+API_URL = "http://localhost:8000"
+CBS_URL = "http://localhost:8001"
+
 DECISION_COLOR = {
     "allow":    "#1a7a1a",
     "throttle": "#b36b00",
@@ -28,4 +31,3 @@ MAL_FEATURES: dict[str, float] = {
     "logon_count": 1.0, "after_hours": 0.9, "unique_pcs": 4.0,
     "device_events": 8.0, "file_events": 150.0, "http_events": 2.0, "email_events": 0.0,
 }
-CBS_URL = "http://localhost:8001"

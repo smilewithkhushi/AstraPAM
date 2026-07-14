@@ -63,7 +63,8 @@ def _unmatched(con: sqlite3.Connection, sla_seconds: int) -> list[dict]:
     cutoff = (_now() - timedelta(seconds=sla_seconds)).isoformat()
     rows = con.execute(
         """
-        SELECT pa.action_id, pa.user_id, pa.channel, pa.amount, pa.timestamp
+        SELECT pa.action_id, pa.user_id, pa.channel, pa.amount, pa.timestamp,
+               COALESCE(pa.correlation_id, '')
         FROM   privileged_actions pa
         WHERE  pa.amount IS NOT NULL
           AND  pa.timestamp <= :cutoff
@@ -74,7 +75,7 @@ def _unmatched(con: sqlite3.Connection, sla_seconds: int) -> list[dict]:
         """,
         {"cutoff": cutoff},
     ).fetchall()
-    cols = ("action_id", "user_id", "channel", "amount", "timestamp")
+    cols = ("action_id", "user_id", "channel", "amount", "timestamp", "correlation_id")
     return [dict(zip(cols, r)) for r in rows]
 
 
@@ -102,17 +103,19 @@ def run(sla_seconds: int = 30) -> list[ReconAlert]:
             severity=severity,
             recommended_action=recommended_action,
             detected_at=now,
+            correlation_id=row.get("correlation_id", ""),
         )
         con.execute(
             """INSERT OR IGNORE INTO recon_alerts
-               (action_id, reason, severity, recommended_action, detected_at)
-               VALUES (?,?,?,?,?)""",
+               (action_id, reason, severity, recommended_action, detected_at, correlation_id)
+               VALUES (?,?,?,?,?,?)""",
             (
                 alert.action_id,
                 alert.reason,
                 alert.severity,
                 alert.recommended_action,
                 alert.detected_at.isoformat(),
+                alert.correlation_id,
             ),
         )
         alerts.append(alert)
@@ -128,7 +131,8 @@ def get_all_alerts() -> list[ReconAlert]:
     """All persisted alerts, most recent first."""
     con = sqlite3.connect(DB_PATH)
     rows = con.execute(
-        "SELECT action_id, reason, severity, recommended_action, detected_at"
+        "SELECT action_id, reason, severity, recommended_action, detected_at,"
+        " COALESCE(correlation_id, '')"
         " FROM recon_alerts ORDER BY detected_at DESC"
     ).fetchall()
     con.close()
@@ -139,6 +143,7 @@ def get_all_alerts() -> list[ReconAlert]:
             severity=r[2],
             recommended_action=r[3],
             detected_at=datetime.fromisoformat(r[4]),
+            correlation_id=r[5],
         )
         for r in rows
     ]

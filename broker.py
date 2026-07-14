@@ -18,6 +18,7 @@ import httpx
 
 import crypto
 import risk as risk_engine
+from roles import get_user
 from schemas import DB_PATH, AccessRequest, EphemeralGrant, RiskResult
 
 CBS_URL           = os.getenv("CBS_URL", "http://localhost:8001")
@@ -50,10 +51,10 @@ def _revoke_on_cbs(grant_id: str) -> None:
 def _save(con: sqlite3.Connection, g: EphemeralGrant) -> None:
     con.execute(
         "INSERT INTO ephemeral_grants"
-        " (grant_id, user_id, target, expires_at, revoked, rate_cap, break_glass)"
-        " VALUES (?,?,?,?,?,?,?)",
+        " (grant_id, user_id, target, expires_at, revoked, rate_cap, break_glass, correlation_id)"
+        " VALUES (?,?,?,?,?,?,?,?)",
         (g.grant_id, g.user_id, g.target, g.expires_at.isoformat(),
-         int(g.revoked), g.rate_cap, int(g.break_glass)),
+         int(g.revoked), g.rate_cap, int(g.break_glass), g.correlation_id),
     )
 
 
@@ -64,6 +65,17 @@ def request_access(req: AccessRequest, session_features: dict[str, float]) -> di
 
     Returns a dict (not a Pydantic model) so main.py can return it directly as JSON.
     """
+    # Phase 8: honour freeze/block status — no new grants for locked users
+    bank_user = get_user(req.user_id)
+    if bank_user and bank_user.status in ("FROZEN", "BLOCKED"):
+        return {
+            "status": "denied",
+            "reason": f"User {req.user_id} is {bank_user.status}. No new grants permitted.",
+            "score": 1.0,
+            "attack_tags": [],
+            "top_factors": [],
+        }
+
     result: RiskResult = risk_engine.score(session_features)
 
     if result.decision == "deny":
@@ -86,6 +98,7 @@ def request_access(req: AccessRequest, session_features: dict[str, float]) -> di
 
     rate_cap = THROTTLE_CAP if result.decision == "throttle" else None
     now      = _now()
+    cid      = req.correlation_id
     grant    = EphemeralGrant(
         grant_id=str(uuid.uuid4()),
         user_id=req.user_id,
@@ -93,6 +106,7 @@ def request_access(req: AccessRequest, session_features: dict[str, float]) -> di
         expires_at=now + timedelta(seconds=GRANT_TTL),
         revoked=False,
         rate_cap=rate_cap,
+        correlation_id=cid,
     )
 
     _provision(grant.grant_id, grant.user_id, rate_cap)
@@ -102,11 +116,25 @@ def request_access(req: AccessRequest, session_features: dict[str, float]) -> di
     con.commit()
     con.close()
 
-    crypto.append_audit(
-        f'{{"event":"grant_issued","grant_id":"{grant.grant_id}",'
-        f'"user_id":"{grant.user_id}","decision":"{result.decision}",'
-        f'"score":{result.score},"expires_at":"{grant.expires_at.isoformat()}"}}'
-    )
+    import roles as _roles
+    role_name = ""
+    branch = ""
+    if bank_user:
+        role = _roles.get_role(bank_user.role_id)
+        role_name = role.name if role else bank_user.role_id
+        branch = bank_user.branch_sol
+
+    crypto.append_audit(json.dumps({
+        "event": "grant_issued",
+        "correlation_id": cid,
+        "grant_id": grant.grant_id,
+        "user_id": grant.user_id,
+        "role": role_name,
+        "branch": branch,
+        "decision": result.decision,
+        "score": result.score,
+        "expires_at": grant.expires_at.isoformat(),
+    }))
 
     return {
         "status": "granted" if result.decision == "allow" else "granted_throttled",
@@ -114,6 +142,7 @@ def request_access(req: AccessRequest, session_features: dict[str, float]) -> di
         "risk": {"score": result.score, "decision": result.decision,
                  "attack_tags": result.attack_tags,
                  "top_factors": [f.model_dump() for f in result.top_factors]},
+        "actor": {"role": role_name, "branch": branch},
     }
 
 
@@ -148,7 +177,7 @@ def get_active_grants() -> list[EphemeralGrant]:
     cutoff = _now().isoformat()
     con    = sqlite3.connect(DB_PATH)
     rows   = con.execute(
-        "SELECT grant_id, user_id, target, expires_at, revoked, rate_cap, break_glass"
+        "SELECT grant_id, user_id, target, expires_at, revoked, rate_cap, break_glass, correlation_id"
         " FROM ephemeral_grants WHERE revoked=0 AND expires_at > ?",
         (cutoff,),
     ).fetchall()
@@ -158,6 +187,7 @@ def get_active_grants() -> list[EphemeralGrant]:
             grant_id=r[0], user_id=r[1], target=r[2],
             expires_at=datetime.fromisoformat(r[3]),
             revoked=bool(r[4]), rate_cap=r[5], break_glass=bool(r[6]),
+            correlation_id=r[7] or "",
         )
         for r in rows
     ]
@@ -173,14 +203,16 @@ def break_glass_access(user_id: str, target: str, justification: str,
     """
     result: RiskResult = risk_engine.score(session_features)
     now    = _now()
+    cid    = str(uuid.uuid4())  # break-glass always starts a fresh correlation
     grant  = EphemeralGrant(
-        grant_id    = str(uuid.uuid4()),
-        user_id     = user_id,
-        target      = target,
-        expires_at  = now + timedelta(seconds=BREAK_GLASS_TTL),
-        revoked     = False,
-        rate_cap    = None,
-        break_glass = True,
+        grant_id       = str(uuid.uuid4()),
+        user_id        = user_id,
+        target         = target,
+        expires_at     = now + timedelta(seconds=BREAK_GLASS_TTL),
+        revoked        = False,
+        rate_cap       = None,
+        break_glass    = True,
+        correlation_id = cid,
     )
 
     _provision(grant.grant_id, grant.user_id, None)
@@ -192,6 +224,7 @@ def break_glass_access(user_id: str, target: str, justification: str,
 
     crypto.append_audit(json.dumps({
         "event":           "break_glass_grant",
+        "correlation_id":  cid,
         "grant_id":        grant.grant_id,
         "user_id":         user_id,
         "target":          target,
@@ -203,8 +236,9 @@ def break_glass_access(user_id: str, target: str, justification: str,
     }))
 
     return {
-        "status":        "break_glass_granted",
-        "grant":         grant.model_dump(),
+        "status":          "break_glass_granted",
+        "correlation_id":  cid,
+        "grant":           grant.model_dump(),
         "risk_at_issue": {
             "score":        result.score,
             "decision":     result.decision,
