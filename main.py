@@ -6,7 +6,9 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 import broker
+import cbom as cbom_scanner
 import crypto
+import nhi as nhi_module
 import reconcile
 from schemas import ActionType, init_db
 
@@ -36,6 +38,13 @@ class FinancialActionBody(BaseModel):
     amount: float
 
 
+class BreakGlassBody(BaseModel):
+    user_id: str
+    target: str
+    justification: str
+    features: dict[str, float] = {}
+
+
 # ── health ────────────────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -61,6 +70,17 @@ def access_request(body: AccessRequestBody) -> Any:
 def access_revoke(grant_id: str) -> dict:
     broker.revoke(grant_id)
     return {"revoked": grant_id}
+
+
+@app.post("/access/break-glass")
+def access_break_glass(body: BreakGlassBody) -> Any:
+    """Emergency access — bypasses risk gating, but logs score + justification to audit chain."""
+    return broker.break_glass_access(
+        user_id=body.user_id,
+        target=body.target,
+        justification=body.justification,
+        session_features=body.features,
+    )
 
 
 @app.post("/access/expire")
@@ -113,3 +133,51 @@ def audit_verify() -> dict:
 @app.get("/crypto/audit")
 def audit_log() -> list:
     return [r.model_dump() for r in crypto.get_audit_log()]
+
+
+# ── CBOM ──────────────────────────────────────────────────────────────────────
+
+# ── NHI governance ────────────────────────────────────────────────────────────
+
+class NHIRegisterBody(BaseModel):
+    name:        str
+    nhi_type:    str
+    owner:       str
+    ttl_days:    int = 90
+    description: str = ""
+
+
+@app.post("/nhi/register", status_code=201)
+def nhi_register(body: NHIRegisterBody) -> dict:
+    return nhi_module.register(**body.model_dump()).model_dump()
+
+
+@app.get("/nhi/list")
+def nhi_list() -> list:
+    return [n.model_dump() for n in nhi_module.list_all()]
+
+
+@app.post("/nhi/rotate/{nhi_id}")
+def nhi_rotate(nhi_id: str, ttl_days: int = 90) -> dict:
+    return nhi_module.rotate(nhi_id, ttl_days).model_dump()
+
+
+@app.post("/nhi/revoke/{nhi_id}")
+def nhi_revoke(nhi_id: str) -> dict:
+    return nhi_module.revoke(nhi_id).model_dump()
+
+
+@app.get("/nhi/scan")
+def nhi_scan() -> dict:
+    expired = nhi_module.scan_expired()
+    return {"newly_expired": [n.model_dump() for n in expired], "count": len(expired)}
+
+
+# ── CBOM ──────────────────────────────────────────────────────────────────────
+
+@app.get("/cbom/scan")
+def cbom_scan() -> dict:
+    """Scan project .py files for cryptographic algorithm usage.
+    Classifies findings as quantum_safe / hybrid_pqc / quantum_vulnerable / classical_symmetric.
+    """
+    return cbom_scanner.scan().model_dump()

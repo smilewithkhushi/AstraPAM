@@ -15,7 +15,7 @@ slicer==0.0.8
 cloudpickle>=1.2.2
 tqdm>=4.27.0
 pandas==3.0.3
-numpy==2.5.1
+numpy==2.4.6
 
 # ui
 streamlit==1.59.2

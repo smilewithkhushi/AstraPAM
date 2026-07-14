@@ -13,7 +13,9 @@ import pandas as pd
 import streamlit as st
 
 import broker
+import cbom as cbom_scanner
 import crypto
+import nhi as nhi_module
 import reconcile
 import risk as risk_engine
 from schemas import DB_PATH, init_db
@@ -104,7 +106,56 @@ with st.sidebar:
     if st.button("🔗 Verify audit chain", use_container_width=True):
         st.session_state["chain_status"] = crypto.verify_chain()
 
-    st.subheader("4 — Tamper Detection Demo")
+    st.subheader("4 — Break-glass Access")
+    if st.button("🚨 Emergency break-glass", use_container_width=True):
+        try:
+            resp = httpx.post(
+                "http://localhost:8000/access/break-glass",
+                json={
+                    "user_id": "admin_emergency",
+                    "target":  "core_banking_prod",
+                    "justification": "P1 outage — production DB locked, normal path denied",
+                    "features": _MAL_FEATURES,
+                },
+                timeout=5,
+            )
+            d = resp.json()
+            st.warning(
+                f"⚡ Granted despite risk={d['risk_at_issue']['score']:.3f} "
+                f"({d['risk_at_issue']['decision'].upper()}) — "
+                "event signed in audit chain"
+            )
+        except Exception as e:
+            st.error(f"Start services first: ./script.sh ({e})")
+
+    st.subheader("5 — NHI Governance")
+    if st.button("📦 Seed demo NHIs", use_container_width=True):
+        try:
+            seeded = []
+            seeded.append(nhi_module.register(
+                "svc_cbs_reader", "service_account", "infra-team",
+                ttl_days=90, description="Read-only CBS data service account",
+            ))
+            seeded.append(nhi_module.register(
+                "api_key_reporting", "api_key", "analytics-team",
+                ttl_days=-30, description="Analytics API key — ORPHANED (expired 30d ago)",
+            ))
+            seeded.append(nhi_module.register(
+                "ai_agent_fraud_detector", "ai_agent", "ml-team",
+                ttl_days=7, description="Fraud-detection ML agent credential",
+            ))
+            st.success(f"Registered {len(seeded)} NHIs — see panel below")
+        except Exception as e:
+            st.error(str(e))
+
+    if st.button("🔍 Scan for expired NHIs", use_container_width=True):
+        expired = nhi_module.scan_expired()
+        if expired:
+            st.warning(f"⚠️ {len(expired)} newly-expired NHI(s) — signed in audit chain")
+        else:
+            st.success("No newly-expired NHIs")
+
+    st.subheader("6 — Tamper Detection Demo")
     if st.button("💥 Tamper audit record (seq=1)", use_container_width=True):
         con = sqlite3.connect(DB_PATH)
         rows = con.execute("SELECT seq FROM audit_records LIMIT 1").fetchall()
@@ -216,6 +267,7 @@ with col_pqc:
         st.success("No standing privileges — Zero Standing Privilege enforced ✓")
     else:
         df_g = pd.DataFrame([{
+            "Type":       "🚨 BG" if g.break_glass else "JIT",
             "Grant ID":   g.grant_id[:12] + "…",
             "User":       g.user_id,
             "Target":     g.target,
@@ -243,3 +295,86 @@ else:
             f"<sub>action_id: `{a.action_id[:20]}…`  &nbsp;·&nbsp;  "
             f"detected: `{a.detected_at.strftime('%Y-%m-%d %H:%M:%S')}`</sub>",
         )
+
+
+# ── NHI INVENTORY ────────────────────────────────────────────────────────────
+st.divider()
+st.subheader("🤖 NHI Governance — Non-Human Identity Inventory")
+st.caption(
+    "Service accounts · API keys · AI-agent credentials. "
+    "Every identity has a named owner and a mandatory expiry — no perpetual credentials."
+)
+
+_nhis = nhi_module.list_all()
+
+if not _nhis:
+    st.info("No NHIs registered yet. Press **Seed demo NHIs** in the sidebar.")
+else:
+    _now_dt = __import__('datetime').datetime.utcnow()
+    _active   = sum(1 for n in _nhis if n.status == "active")
+    _soon     = sum(1 for n in _nhis if n.status == "expiring_soon")
+    _expired  = sum(1 for n in _nhis if n.status == "expired")
+    _revoked  = sum(1 for n in _nhis if n.status == "revoked")
+
+    _na, _nb, _nc, _nd = st.columns(4)
+    _na.metric("🟢 Active",        _active)
+    _nb.metric("🟠 Expiring Soon", _soon)
+    _nc.metric("🔴 Expired",       _expired)
+    _nd.metric("⬛ Revoked",       _revoked)
+
+    _NHI_STATUS = {
+        "active":        "🟢 Active",
+        "expiring_soon": "🟠 Expiring Soon",
+        "expired":       "🔴 Expired",
+        "revoked":       "⬛ Revoked",
+    }
+    _TYPE_ICON = {"service_account": "⚙️", "api_key": "🔑", "ai_agent": "🤖"}
+
+    df_nhi = pd.DataFrame([{
+        "Type":    _TYPE_ICON.get(n.nhi_type, "?") + " " + n.nhi_type,
+        "Name":    n.name,
+        "Owner":   n.owner,
+        "Status":  _NHI_STATUS[n.status],
+        "Expires": n.expires_at.strftime("%Y-%m-%d"),
+        "Last Used": n.last_used.strftime("%Y-%m-%d") if n.last_used else "Never",
+        "Description": n.description,
+    } for n in _nhis])
+    st.dataframe(df_nhi, use_container_width=True, hide_index=True)
+
+# ── CBOM ──────────────────────────────────────────────────────────────────────
+st.divider()
+st.subheader("🔬 CBOM — Cryptographic Bill of Materials")
+st.caption(
+    "Live scan of project .py files — classifies every crypto primitive used. "
+    "Mirrors the RBI Q-SAFE CBOM workstream."
+)
+
+_cbom = cbom_scanner.scan()
+
+if _cbom.quantum_vulnerable_count == 0:
+    st.success(f"✅ {_cbom.verdict}")
+else:
+    st.error(f"🚨 {_cbom.verdict}")
+
+_c1, _c2, _c3, _c4, _c5 = st.columns(5)
+_c1.metric("Files Scanned",      _cbom.scanned_files)
+_c2.metric("✅ Quantum-Safe",    _cbom.quantum_safe_count)
+_c3.metric("🔄 Hybrid PQC",     _cbom.hybrid_pqc_count)
+_c4.metric("⚠️ Classical",      _cbom.classical_count)
+_c5.metric("🚨 Vulnerable",     _cbom.quantum_vulnerable_count)
+
+if _cbom.entries:
+    _STATUS = {
+        "quantum_safe":        "✅ Quantum-Safe",
+        "hybrid_pqc":          "🔄 Hybrid PQC",
+        "quantum_vulnerable":  "🚨 Vulnerable",
+        "classical_symmetric": "⚠️ Classical",
+    }
+    df_cbom = pd.DataFrame([{
+        "File":      e.file,
+        "Line":      e.line,
+        "Algorithm": e.algorithm,
+        "Status":    _STATUS[e.category],
+        "Reason":    e.reason,
+    } for e in _cbom.entries])
+    st.dataframe(df_cbom, use_container_width=True, hide_index=True)

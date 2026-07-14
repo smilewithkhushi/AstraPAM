@@ -8,6 +8,7 @@ Public API:
 """
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import uuid
@@ -19,9 +20,10 @@ import crypto
 import risk as risk_engine
 from schemas import DB_PATH, AccessRequest, EphemeralGrant, RiskResult
 
-CBS_URL       = os.getenv("CBS_URL", "http://localhost:8001")
-GRANT_TTL     = int(os.getenv("GRANT_TTL_SECONDS", "300"))
-THROTTLE_CAP  = float(os.getenv("THROTTLE_RATE_CAP", "1000.0"))
+CBS_URL           = os.getenv("CBS_URL", "http://localhost:8001")
+GRANT_TTL         = int(os.getenv("GRANT_TTL_SECONDS", "300"))
+BREAK_GLASS_TTL   = int(os.getenv("BREAK_GLASS_TTL_SECONDS", "60"))
+THROTTLE_CAP      = float(os.getenv("THROTTLE_RATE_CAP", "1000.0"))
 
 _now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -47,9 +49,11 @@ def _revoke_on_cbs(grant_id: str) -> None:
 
 def _save(con: sqlite3.Connection, g: EphemeralGrant) -> None:
     con.execute(
-        "INSERT INTO ephemeral_grants (grant_id, user_id, target, expires_at, revoked, rate_cap)"
-        " VALUES (?,?,?,?,?,?)",
-        (g.grant_id, g.user_id, g.target, g.expires_at.isoformat(), int(g.revoked), g.rate_cap),
+        "INSERT INTO ephemeral_grants"
+        " (grant_id, user_id, target, expires_at, revoked, rate_cap, break_glass)"
+        " VALUES (?,?,?,?,?,?,?)",
+        (g.grant_id, g.user_id, g.target, g.expires_at.isoformat(),
+         int(g.revoked), g.rate_cap, int(g.break_glass)),
     )
 
 
@@ -144,7 +148,7 @@ def get_active_grants() -> list[EphemeralGrant]:
     cutoff = _now().isoformat()
     con    = sqlite3.connect(DB_PATH)
     rows   = con.execute(
-        "SELECT grant_id, user_id, target, expires_at, revoked, rate_cap"
+        "SELECT grant_id, user_id, target, expires_at, revoked, rate_cap, break_glass"
         " FROM ephemeral_grants WHERE revoked=0 AND expires_at > ?",
         (cutoff,),
     ).fetchall()
@@ -153,7 +157,63 @@ def get_active_grants() -> list[EphemeralGrant]:
         EphemeralGrant(
             grant_id=r[0], user_id=r[1], target=r[2],
             expires_at=datetime.fromisoformat(r[3]),
-            revoked=bool(r[4]), rate_cap=r[5],
+            revoked=bool(r[4]), rate_cap=r[5], break_glass=bool(r[6]),
         )
         for r in rows
     ]
+
+
+def break_glass_access(user_id: str, target: str, justification: str,
+                       session_features: dict[str, float]) -> dict:
+    """Emergency bypass — issues a grant regardless of risk score.
+
+    Risk is still scored and written to the tamper-evident audit chain so the
+    decision can be reviewed forensically. TTL is capped at BREAK_GLASS_TTL
+    to limit the exposure window.
+    """
+    result: RiskResult = risk_engine.score(session_features)
+    now    = _now()
+    grant  = EphemeralGrant(
+        grant_id    = str(uuid.uuid4()),
+        user_id     = user_id,
+        target      = target,
+        expires_at  = now + timedelta(seconds=BREAK_GLASS_TTL),
+        revoked     = False,
+        rate_cap    = None,
+        break_glass = True,
+    )
+
+    _provision(grant.grant_id, grant.user_id, None)
+
+    con = sqlite3.connect(DB_PATH)
+    _save(con, grant)
+    con.commit()
+    con.close()
+
+    crypto.append_audit(json.dumps({
+        "event":           "break_glass_grant",
+        "grant_id":        grant.grant_id,
+        "user_id":         user_id,
+        "target":          target,
+        "justification":   justification,
+        "risk_score":      result.score,
+        "risk_decision":   result.decision,
+        "attack_tags":     result.attack_tags,
+        "expires_at":      grant.expires_at.isoformat(),
+    }))
+
+    return {
+        "status":        "break_glass_granted",
+        "grant":         grant.model_dump(),
+        "risk_at_issue": {
+            "score":        result.score,
+            "decision":     result.decision,
+            "attack_tags":  result.attack_tags,
+            "top_factors":  [f.model_dump() for f in result.top_factors],
+        },
+        "warning": (
+            f"Break-glass overrides risk decision '{result.decision}' "
+            f"(score={result.score:.3f}). "
+            "This event is cryptographically signed in the audit chain."
+        ),
+    }

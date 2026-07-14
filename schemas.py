@@ -9,10 +9,12 @@ from pydantic import BaseModel
 
 DB_PATH = os.getenv("AEGISPAM_DB", "database/aegispam.db")
 
-Decision = Literal["allow", "throttle", "step_up", "deny"]
-Severity = Literal["critical", "high", "medium", "low"]
-Channel = Literal["cbs", "swift_like"]
+Decision  = Literal["allow", "throttle", "step_up", "deny"]
+Severity  = Literal["critical", "high", "medium", "low"]
+Channel   = Literal["cbs", "swift_like"]
 ActionType = Literal["read", "admin", "financial"]
+NHIType   = Literal["service_account", "api_key", "ai_agent"]
+NHIStatus = Literal["active", "expiring_soon", "expired", "revoked"]
 AttackTag = Literal[
     "OFF_HOURS_ACTIVITY",
     "ANOMALOUS_LOCATION",
@@ -33,6 +35,7 @@ class AccessRequest(BaseModel):
     target: str
     action_type: ActionType
     requested_at: datetime
+    break_glass: bool = False
 
 
 class RiskFactor(BaseModel):
@@ -54,6 +57,7 @@ class EphemeralGrant(BaseModel):
     expires_at: datetime
     revoked: bool
     rate_cap: float | None = None  # non-null when decision is throttle
+    break_glass: bool = False
 
 
 class PrivilegedAction(BaseModel):
@@ -95,6 +99,18 @@ class CryptoArtifact(BaseModel):
     algorithm: str  # "ML-KEM-768"
 
 
+class NHIIdentity(BaseModel):
+    nhi_id:      str
+    name:        str
+    nhi_type:    NHIType
+    owner:       str
+    description: str = ""
+    created_at:  datetime
+    expires_at:  datetime
+    last_used:   datetime | None = None
+    status:      NHIStatus = "active"
+
+
 def init_db() -> None:
     parent = os.path.dirname(DB_PATH)
     if parent:
@@ -107,7 +123,8 @@ def init_db() -> None:
             target              TEXT NOT NULL,
             expires_at          TEXT NOT NULL,
             revoked             INTEGER NOT NULL DEFAULT 0,
-            rate_cap            REAL
+            rate_cap            REAL,
+            break_glass         INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS privileged_actions (
             action_id           TEXT PRIMARY KEY,
@@ -136,6 +153,23 @@ def init_db() -> None:
             signature           TEXT NOT NULL,
             hash                TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS nhi_identities (
+            nhi_id              TEXT PRIMARY KEY,
+            name                TEXT NOT NULL,
+            nhi_type            TEXT NOT NULL,
+            owner               TEXT NOT NULL,
+            description         TEXT NOT NULL DEFAULT '',
+            created_at          TEXT NOT NULL,
+            expires_at          TEXT NOT NULL,
+            last_used           TEXT,
+            status              TEXT NOT NULL DEFAULT 'active'
+        );
     """)
     con.commit()
+    # migrate existing DBs that pre-date the break_glass column
+    try:
+        con.execute("ALTER TABLE ephemeral_grants ADD COLUMN break_glass INTEGER NOT NULL DEFAULT 0")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass
     con.close()
