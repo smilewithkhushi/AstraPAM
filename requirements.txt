@@ -23,6 +23,9 @@ streamlit==1.59.2
 # dev
 ruff==0.15.21
 
+# reporting (phase 10)
+fpdf2==2.8.3
+
 # pqc (phase 4)
 cryptography==45.0.5
 pqcrypto==0.4.0

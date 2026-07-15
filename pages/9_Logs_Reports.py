@@ -222,28 +222,81 @@ with tab_logs:
                 unsafe_allow_html=True,
             )
 
-# ── TAB 2 — Reports (stub) ────────────────────────────────────────────────────
+# ── TAB 2 — Reports ───────────────────────────────────────────────────────────
 with tab_reports:
-    st.subheader("Scheduled Reports")
-    st.info(
-        "**Coming soon.** This pane will generate and download:\n\n"
-        "- **Weekly summary** — access decisions by user/channel, top risk scores, SoD conflicts flagged, "
-        "console actions taken, recon alerts by severity.\n"
-        "- **Monthly report** — trend charts (risk score distribution, grant volume, alert cadence), "
-        "exposure score changes, audit chain integrity status, maker-checker throughput.\n\n"
-        "Reports will be exportable as PDF and CSV."
+    import report_generator
+
+    st.markdown("&nbsp;", unsafe_allow_html=True)
+    st.markdown(
+        "Generates a banking-grade internal audit report sourced from live AegisPAM system-of-record data. "
+        "Every quantitative figure is pulled directly from the control plane at generation time. "
+        "Reports are formatted for internal distribution and regulatory review."
     )
 
     col1, col2 = st.columns(2)
+
     with col1:
         with st.container(border=True):
-            st.markdown("### 📅 Weekly Report")
-            st.markdown("Last generated: —")
-            st.markdown("Coverage: last 7 days")
-            st.button("Generate Weekly Report", disabled=True, key="gen_weekly")
+            st.markdown("##### 📅 7-Day Operational Audit")
+            st.caption(
+                "Covers access grants, reconciliation alerts, risk scores, audit chain "
+                "integrity, NHI governance, and regulatory alignment for the past week."
+            )
+            st.markdown("&nbsp;", unsafe_allow_html=True)
+            if st.button("Generate 7-Day Report", use_container_width=True, type="primary", key="gen_7d"):
+                with st.spinner("Collecting data and calling NVIDIA NIM for narrative…"):
+                    try:
+                        pdf_bytes = report_generator.generate_pdf(days=7)
+                        fname = f"AegisPAM_Audit_7d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                        st.success("Report ready — click below to download.")
+                        st.download_button(
+                            "⬇ Download PDF",
+                            data=pdf_bytes,
+                            file_name=fname,
+                            mime="application/pdf",
+                            use_container_width=True,
+                            key="dl_7d",
+                        )
+                    except Exception as e:
+                        st.error(f"Generation failed: {e}")
+
     with col2:
         with st.container(border=True):
-            st.markdown("### 📆 Monthly Report")
-            st.markdown("Last generated: —")
-            st.markdown("Coverage: last 30 days")
-            st.button("Generate Monthly Report", disabled=True, key="gen_monthly")
+            st.markdown("##### 📆 30-Day Periodic Review")
+            st.caption(
+                "Extended review window covering a full calendar month — grant volume trends, "
+                "alert cadence by severity, NHI lifecycle, and SOC console action throughput."
+            )
+            st.markdown("&nbsp;", unsafe_allow_html=True)
+            if st.button("Generate 30-Day Report", use_container_width=True, key="gen_30d"):
+                with st.spinner("Collecting data and calling NVIDIA NIM for narrative…"):
+                    try:
+                        pdf_bytes = report_generator.generate_pdf(days=30)
+                        fname = f"AegisPAM_Audit_30d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                        st.success("Report ready — click below to download.")
+                        st.download_button(
+                            "⬇ Download PDF",
+                            data=pdf_bytes,
+                            file_name=fname,
+                            mime="application/pdf",
+                            use_container_width=True,
+                            key="dl_30d",
+                        )
+                    except Exception as e:
+                        st.error(f"Generation failed: {e}")
+
+    st.markdown("&nbsp;", unsafe_allow_html=True)
+    with st.expander("Report structure"):
+        st.markdown(
+            "Every generated report contains:\n\n"
+            "1. **Cover page** — Report ID, period, classification, applicable standards\n"
+            "2. **Executive Summary** — NIM-authored narrative, grounded in live metrics\n"
+            "3. **Access Control Summary** — grant volume, break-glass count, PQC mechanism\n"
+            "4. **Behavioral Risk Engine** — session scores, decision distribution, attack tags\n"
+            "5. **Reconciliation Findings** — alerts by severity, fraud pattern targeted\n"
+            "6. **NHI Governance** — inventory by status, CBOM alignment\n"
+            "7. **Audit Chain Integrity** — record count, signing algorithm, tamper detection\n"
+            "8. **Key Findings** — NIM-authored bullet observations\n"
+            "9. **Regulatory Alignment Matrix** — RBI CSF, IT Governance 2024, Apr-2026 Auth Directions\n\n"
+            "All quantitative sections are sourced directly from the control plane and are always accurate."
+        )

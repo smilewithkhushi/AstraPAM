@@ -30,7 +30,7 @@ with st.sidebar:
 # ── header ────────────────────────────────────────────────────────────────────
 st.title("Access Control")
 st.markdown(
-    "Just-in-time ephemeral access grants with automatic expiry enforce zero standing privilege. "
+    "Just-in-time (JIT) ephemeral access grants with automatic expiry enforce zero standing privilege. "
     "Credentials are issued via a hybrid ML-KEM-768 + X25519 post-quantum handshake, and every "
     "grant event is written to a Dilithium-signed, hash-chained audit log."
 )
@@ -87,16 +87,28 @@ with st.container(border=True):
     with a4:
         st.markdown("**🔨 Tamper + Detect**")
         st.caption("Corrupts audit record seq 1, then run Verify Chain above to catch it.")
-        if st.button("Tamper seq 1", use_container_width=True):
-            con = sqlite3.connect(DB_PATH)
-            rows = con.execute("SELECT seq FROM audit_records LIMIT 1").fetchall()
-            if rows:
-                con.execute("UPDATE audit_records SET payload='[TAMPERED]' WHERE seq=1")
+        t_col, r_col = st.columns(2)
+        with t_col:
+            if st.button("Tamper seq 1", use_container_width=True):
+                con = sqlite3.connect(DB_PATH)
+                rows = con.execute("SELECT seq FROM audit_records LIMIT 1").fetchall()
+                if rows:
+                    con.execute("UPDATE audit_records SET payload='[TAMPERED]' WHERE seq=1")
+                    con.commit()
+                    st.warning("Tampered — click Verify Chain to detect")
+                else:
+                    st.info("Issue a credential first")
+                con.close()
+        with r_col:
+            if st.button("↺ Reset chain", use_container_width=True, help="Wipes all audit records so the demo starts clean"):
+                con = sqlite3.connect(DB_PATH)
+                con.execute("DELETE FROM audit_records")
                 con.commit()
-                st.warning("Tampered — click Verify Chain to detect")
-            else:
-                st.info("Issue a credential first")
-            con.close()
+                con.close()
+                st.session_state.pop("chain_status", None)
+                st.session_state.pop("last_artifact", None)
+                st.success("Chain reset — issue a credential to begin again")
+                st.rerun()
 
 st.divider()
 

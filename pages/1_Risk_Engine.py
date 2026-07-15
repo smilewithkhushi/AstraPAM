@@ -53,61 +53,7 @@ st.markdown(
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── scoring pipeline infographic ──────────────────────────────────────────────
-_PIPELINE_HTML = """
-<div style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:12px;padding:20px 24px 16px">
-  <div style="font-size:0.72rem;font-weight:700;letter-spacing:.08em;color:#888;margin-bottom:14px">HOW SCORING WORKS</div>
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap">
-
-    <div style="flex:1;min-width:90px;background:#1a1a2e;color:#fff;border-radius:10px;padding:12px 10px;text-align:center">
-      <div style="font-size:1.5rem">📋</div>
-      <div style="font-size:0.78rem;font-weight:700;margin-top:6px">Session Log</div>
-      <div style="font-size:0.65rem;color:#bbb;margin-top:2px">Raw events<br>from SIEM</div>
-    </div>
-
-    <div style="color:#aaa;font-size:1.4rem;flex-shrink:0">→</div>
-
-    <div style="flex:1;min-width:90px;background:#1b3a5c;color:#fff;border-radius:10px;padding:12px 10px;text-align:center">
-      <div style="font-size:1.5rem">⚙️</div>
-      <div style="font-size:0.78rem;font-weight:700;margin-top:6px">7 Features</div>
-      <div style="font-size:0.65rem;color:#bbb;margin-top:2px">Temporal · lateral<br>· data-movement</div>
-    </div>
-
-    <div style="color:#aaa;font-size:1.4rem;flex-shrink:0">→</div>
-
-    <div style="flex:1;min-width:90px;background:#0d3b2e;color:#fff;border-radius:10px;padding:12px 10px;text-align:center">
-      <div style="font-size:1.5rem">🧠</div>
-      <div style="font-size:0.78rem;font-weight:700;margin-top:6px">LSTM AE</div>
-      <div style="font-size:0.65rem;color:#bbb;margin-top:2px">Autoencoder<br>reconstruction</div>
-    </div>
-
-    <div style="color:#aaa;font-size:1.4rem;flex-shrink:0">→</div>
-
-    <div style="flex:1;min-width:90px;background:#3b1a00;color:#fff;border-radius:10px;padding:12px 10px;text-align:center">
-      <div style="font-size:1.5rem">📐</div>
-      <div style="font-size:0.78rem;font-weight:700;margin-top:6px">SHAP</div>
-      <div style="font-size:0.65rem;color:#bbb;margin-top:2px">Feature-level<br>attribution</div>
-    </div>
-
-    <div style="color:#aaa;font-size:1.4rem;flex-shrink:0">→</div>
-
-    <div style="flex:1;min-width:90px;background:#3b0000;color:#fff;border-radius:10px;padding:12px 10px;text-align:center">
-      <div style="font-size:1.5rem">🎯</div>
-      <div style="font-size:0.78rem;font-weight:700;margin-top:6px">Risk Score</div>
-      <div style="font-size:0.65rem;color:#bbb;margin-top:2px">0 – 1 anomaly<br>magnitude</div>
-    </div>
-
-    <div style="color:#aaa;font-size:1.4rem;flex-shrink:0">→</div>
-
-    <div style="flex:1;min-width:90px;background:#2e003b;color:#fff;border-radius:10px;padding:12px 10px;text-align:center">
-      <div style="font-size:1.5rem">🚦</div>
-      <div style="font-size:0.78rem;font-weight:700;margin-top:6px">Decision</div>
-      <div style="font-size:0.65rem;color:#bbb;margin-top:2px">Allow · Throttle<br>Step-Up · Deny</div>
-    </div>
-
-  </div>
-</div>
-"""
-st.markdown(_PIPELINE_HTML, unsafe_allow_html=True)
+st.image("preview/scoring_pipeline.png", use_container_width=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
