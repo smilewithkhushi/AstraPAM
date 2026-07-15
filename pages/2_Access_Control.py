@@ -22,56 +22,9 @@ st.set_page_config(
 
 init_db()
 
-# ── sidebar: access control demo controls ─────────────────────────────────────
 with st.sidebar:
     st.divider()
-    st.markdown("**Demo Controls**")
-    st.caption("Issue credentials, trigger break-glass, and test tamper detection.")
-
-    if st.button("Issue PQC credential", width="stretch"):
-        art = crypto.issue_credential("demo_user", "grant-demo")
-        st.session_state["last_artifact"] = art
-        st.success(f"ML-KEM-768 handshake complete — pk={art.pubkey_bytes}B")
-
-    if st.button("Verify audit chain", width="stretch"):
-        st.session_state["chain_status"] = crypto.verify_chain()
-
-    st.divider()
-    if st.button("Emergency break-glass", width="stretch"):
-        try:
-            resp = httpx.post(
-                "http://localhost:8000/access/break-glass",
-                json={
-                    "user_id":       "admin_emergency",
-                    "target":        "core_banking_prod",
-                    "justification": "P1 outage — production DB locked, normal path denied",
-                    "features":      _sidebar.MAL_FEATURES,
-                },
-                timeout=5,
-            )
-            d = resp.json()
-            st.warning(
-                f"Granted despite risk={d['risk_at_issue']['score']:.3f} "
-                f"({d['risk_at_issue']['decision'].upper()}) — signed in audit chain"
-            )
-        except Exception as e:
-            st.error(f"Start services first: ./script.sh ({e})")
-
-    st.divider()
-    st.caption("Tamper detection — corrupts seq 1 so verify catches it.")
-    if st.button("Tamper audit record (seq 1)", width="stretch"):
-        con = sqlite3.connect(DB_PATH)
-        rows = con.execute("SELECT seq FROM audit_records LIMIT 1").fetchall()
-        if rows:
-            con.execute("UPDATE audit_records SET payload='[TAMPERED]' WHERE seq=1")
-            con.commit()
-            st.warning("Record tampered — press 'Verify audit chain' to detect")
-        else:
-            st.info("Issue a PQC credential first to populate the log")
-        con.close()
-
-    st.divider()
-    if st.button("Refresh", width="stretch"):
+    if st.button("↺ Refresh", use_container_width=True):
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
@@ -81,6 +34,70 @@ st.markdown(
     "Credentials are issued via a hybrid ML-KEM-768 + X25519 post-quantum handshake, and every "
     "grant event is written to a Dilithium-signed, hash-chained audit log."
 )
+st.divider()
+
+# ── demo action panel ─────────────────────────────────────────────────────────
+with st.container(border=True):
+    st.markdown("##### Demo Actions")
+    st.caption("Run these in sequence to walk through the full access-control flow.")
+    a1, a2, a3, a4 = st.columns(4)
+
+    with a1:
+        st.markdown("**🔑 Issue PQC Credential**")
+        st.caption("Runs a live ML-KEM-768 + X25519 hybrid handshake and writes to the audit chain.")
+        if st.button("Issue credential", use_container_width=True, type="primary"):
+            art = crypto.issue_credential("demo_user", "grant-demo")
+            st.session_state["last_artifact"] = art
+            st.success(f"pk={art.pubkey_bytes}B · ct={art.ciphertext_bytes}B")
+
+    with a2:
+        st.markdown("**✅ Verify Audit Chain**")
+        st.caption("Checks every Dilithium signature in the hash chain and surfaces any break.")
+        if st.button("Verify chain", use_container_width=True):
+            st.session_state["chain_status"] = crypto.verify_chain()
+            cs = st.session_state["chain_status"]
+            if cs["valid"]:
+                st.success(f"Intact — {cs['length']} records")
+            else:
+                st.error(f"Broken at seq={cs['first_bad_seq']}")
+
+    with a3:
+        st.markdown("**🚨 Emergency Break-Glass**")
+        st.caption("Issues a grant despite a high-risk score. Justified and logged — cannot be hidden.")
+        if st.button("Break-glass", use_container_width=True):
+            try:
+                resp = httpx.post(
+                    "http://localhost:8000/access/break-glass",
+                    json={
+                        "user_id":       "admin_emergency",
+                        "target":        "core_banking_prod",
+                        "justification": "P1 outage — production DB locked, normal path denied",
+                        "features":      _sidebar.MAL_FEATURES,
+                    },
+                    timeout=5,
+                )
+                d = resp.json()
+                st.warning(
+                    f"Granted — risk={d['risk_at_issue']['score']:.3f} "
+                    f"({d['risk_at_issue']['decision'].upper()})"
+                )
+            except Exception as e:
+                st.error(f"API unreachable: {e}")
+
+    with a4:
+        st.markdown("**🔨 Tamper + Detect**")
+        st.caption("Corrupts audit record seq 1, then run Verify Chain above to catch it.")
+        if st.button("Tamper seq 1", use_container_width=True):
+            con = sqlite3.connect(DB_PATH)
+            rows = con.execute("SELECT seq FROM audit_records LIMIT 1").fetchall()
+            if rows:
+                con.execute("UPDATE audit_records SET payload='[TAMPERED]' WHERE seq=1")
+                con.commit()
+                st.warning("Tampered — click Verify Chain to detect")
+            else:
+                st.info("Issue a credential first")
+            con.close()
+
 st.divider()
 
 col_grants, col_pqc = st.columns([3, 2])
@@ -149,7 +166,7 @@ with col_pqc:
     art = st.session_state.get("last_artifact")
 
     if art is None:
-        st.info("Press **Issue PQC credential** in the sidebar to run a live handshake.")
+        st.info("Click **Issue credential** above to run a live ML-KEM-768 handshake.")
     else:
         st.markdown(f"**Algorithm:** `{art.algorithm}`")
         b1, b2, b3 = st.columns(3)

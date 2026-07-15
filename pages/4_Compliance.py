@@ -18,41 +18,9 @@ st.set_page_config(
 
 init_db()
 
-# ── sidebar: compliance demo controls ─────────────────────────────────────────
 with st.sidebar:
     st.divider()
-    st.markdown("**Demo Controls**")
-    st.caption("Seed identities, then scan to surface expired credentials.")
-
-    if st.button("Seed demo NHIs", width="stretch"):
-        try:
-            seeded = [
-                nhi_module.register(
-                    "svc_cbs_reader", "service_account", "infra-team",
-                    ttl_days=90, description="Read-only CBS data service account",
-                ),
-                nhi_module.register(
-                    "api_key_reporting", "api_key", "analytics-team",
-                    ttl_days=-30, description="Analytics API key — ORPHANED (expired 30d ago)",
-                ),
-                nhi_module.register(
-                    "ai_agent_fraud_detector", "ai_agent", "ml-team",
-                    ttl_days=7, description="Fraud-detection ML agent credential",
-                ),
-            ]
-            st.success(f"Registered {len(seeded)} NHIs")
-        except Exception as e:
-            st.error(str(e))
-
-    if st.button("Scan for expired NHIs", width="stretch"):
-        expired = nhi_module.scan_expired()
-        if expired:
-            st.warning(f"{len(expired)} newly-expired NHI(s) — signed in audit chain")
-        else:
-            st.success("No newly-expired NHIs")
-
-    st.divider()
-    if st.button("Refresh", width="stretch"):
+    if st.button("↺ Refresh", use_container_width=True):
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
@@ -62,6 +30,56 @@ st.markdown(
     "service account, API key, and AI-agent credential. The Cryptographic Bill of Materials "
     "provides a live audit of every algorithm in use, aligned to the RBI Q-SAFE CBOM workstream."
 )
+st.divider()
+
+# ── demo action panel ─────────────────────────────────────────────────────────
+with st.container(border=True):
+    st.markdown("##### Demo Actions")
+    st.caption("Seed identities first, then scan to surface lifecycle violations.")
+    s1, arrow, s2 = st.columns([2, 0.3, 2])
+
+    with s1:
+        st.markdown("**Step 1 — Seed Demo NHIs**")
+        st.caption(
+            "Registers 3 non-human identities: a healthy service account, "
+            "an orphaned API key (expired 30 days ago), and an AI-agent credential."
+        )
+        if st.button("Seed demo NHIs", use_container_width=True, type="primary"):
+            try:
+                seeded = [
+                    nhi_module.register(
+                        "svc_cbs_reader", "service_account", "infra-team",
+                        ttl_days=90, description="Read-only CBS data service account",
+                    ),
+                    nhi_module.register(
+                        "api_key_reporting", "api_key", "analytics-team",
+                        ttl_days=-30, description="Analytics API key — ORPHANED (expired 30d ago)",
+                    ),
+                    nhi_module.register(
+                        "ai_agent_fraud_detector", "ai_agent", "ml-team",
+                        ttl_days=7, description="Fraud-detection ML agent credential",
+                    ),
+                ]
+                st.success(f"Registered {len(seeded)} NHIs — refresh to see inventory below")
+            except Exception as e:
+                st.error(str(e))
+
+    with arrow:
+        st.markdown("<div style='text-align:center;font-size:2rem;padding-top:2.5rem'>→</div>", unsafe_allow_html=True)
+
+    with s2:
+        st.markdown("**Step 2 — Scan for Expired NHIs**")
+        st.caption(
+            "Flags any identity past its TTL, writes the violation to the "
+            "Dilithium-signed audit chain, and surfaces it in the inventory table."
+        )
+        if st.button("Scan for expired NHIs", use_container_width=True):
+            expired = nhi_module.scan_expired()
+            if expired:
+                st.warning(f"{len(expired)} expired NHI(s) flagged and signed in audit chain")
+            else:
+                st.success("No newly-expired NHIs found")
+
 st.divider()
 
 # ── nhi inventory ─────────────────────────────────────────────────────────────
@@ -74,7 +92,7 @@ st.caption(
 _nhis = nhi_module.list_all()
 
 if not _nhis:
-    st.info("No NHIs registered. Press **Seed demo NHIs** in the sidebar to populate.")
+    st.info("No NHIs registered. Click **Seed demo NHIs** above to populate.")
 else:
     active  = sum(1 for n in _nhis if n.status == "active")
     soon    = sum(1 for n in _nhis if n.status == "expiring_soon")

@@ -17,37 +17,9 @@ st.set_page_config(
 
 init_db()
 
-# ── sidebar: reconciliation demo controls ─────────────────────────────────────
 with st.sidebar:
     st.divider()
-    st.markdown("**Demo Controls**")
-    st.caption("Issue an out-of-band action, then run the reconciliation check.")
-
-    if st.button("Issue SWIFT LoU (no ledger entry)", width="stretch"):
-        try:
-            resp = httpx.post(
-                f"{_sidebar.CBS_URL}/swift/action",
-                json={"user_id": "rogue_admin", "amount": 14000.0,
-                      "description": "Fake LoU — PNB pattern"},
-                timeout=3,
-            )
-            st.success(f"Action issued — id={resp.json()['action_id'][:8]}…")
-        except Exception:
-            st.error("Start services first: ./script.sh")
-
-    if st.button("Run reconciliation (SLA = 0s)", width="stretch"):
-        try:
-            reconcile.sync_from_cbs()
-            alerts = reconcile.run(sla_seconds=0)
-            if alerts:
-                st.error(f"{len(alerts)} new alert(s) raised — see below")
-            else:
-                st.success("No new alerts")
-        except Exception as e:
-            st.error(str(e))
-
-    st.divider()
-    if st.button("Refresh", width="stretch"):
+    if st.button("↺ Refresh", use_container_width=True):
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
@@ -57,6 +29,55 @@ st.markdown(
     "This is the structural detection primitive that targets the PNB fraud signature: "
     "not an anomalous payment, but the complete absence of a ledger record."
 )
+st.divider()
+
+# ── demo flow panel ───────────────────────────────────────────────────────────
+with st.container(border=True):
+    st.markdown("##### Simulate the PNB Pattern")
+    st.caption(
+        "Run Step 1 to inject an out-of-band SWIFT action with no ledger entry, "
+        "then Step 2 to surface it as a reconciliation alert."
+    )
+    step1, arrow, step2 = st.columns([2, 0.3, 2])
+
+    with step1:
+        st.markdown("**Step 1 — Issue SWIFT LoU**")
+        st.caption(
+            "Posts a privileged financial action directly to Mock CBS — "
+            "bypassing the normal grant path, leaving no ledger record."
+        )
+        if st.button("Issue SWIFT LoU (no ledger entry)", use_container_width=True, type="primary"):
+            try:
+                resp = httpx.post(
+                    f"{_sidebar.CBS_URL}/swift/action",
+                    json={"user_id": "rogue_admin", "amount": 14000.0,
+                          "description": "Fake LoU — PNB pattern"},
+                    timeout=3,
+                )
+                st.success(f"Action issued — id=`{resp.json()['action_id'][:8]}…`")
+            except Exception:
+                st.error("Start services first: `./script.sh`")
+
+    with arrow:
+        st.markdown("<div style='text-align:center;font-size:2rem;padding-top:2.5rem'>→</div>", unsafe_allow_html=True)
+
+    with step2:
+        st.markdown("**Step 2 — Run Reconciliation**")
+        st.caption(
+            "Diffs the privileged-action log against the CBS ledger. "
+            "Any unmatched action becomes a severity-tiered alert below."
+        )
+        if st.button("Run reconciliation check", use_container_width=True):
+            try:
+                reconcile.sync_from_cbs()
+                new_alerts = reconcile.run(sla_seconds=0)
+                if new_alerts:
+                    st.error(f"{len(new_alerts)} new alert(s) raised ↓")
+                else:
+                    st.success("No new unmatched actions")
+            except Exception as e:
+                st.error(str(e))
+
 st.divider()
 
 # ── alerts ────────────────────────────────────────────────────────────────────

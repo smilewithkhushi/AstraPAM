@@ -45,6 +45,17 @@ echo "[aegispam] starting Control API on :$API_PORT"
 uvicorn main:app --host 0.0.0.0 --port "$API_PORT" --log-level warning &
 API_PID=$!
 
+# --- wait for API to be ready ---
+echo "[aegispam] waiting for API on :$API_PORT..."
+for i in $(seq 1 30); do
+  if curl -sf "http://localhost:$API_PORT/health" >/dev/null 2>&1 || \
+     curl -sf "http://localhost:$API_PORT/docs" >/dev/null 2>&1; then
+    echo "[aegispam] API is ready."
+    break
+  fi
+  sleep 1
+done
+
 # --- dashboard (port 8501) — launched only once dashboard.py is implemented ---
 if [ -f dashboard.py ]; then
   echo "[aegispam] starting Dashboard on :8501"
