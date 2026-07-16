@@ -11,11 +11,17 @@ st.set_page_config(page_title="SoD & Maker-Checker", page_icon="⚖️", layout=
 
 API = _sidebar.API_URL
 
-st.title("SoD & Maker-Checker")
-st.caption(
-    "Toxic-combination detection (Finacle SoD matrix) + maker-checker enforcement. "
-    "Flags the PNB precondition **before** any fraudulent action occurs. "
-    "Self-approval is rejected with SELF_APPROVAL_BLOCKED."
+st.title("⚖️ Segregation of Duties & Maker-Checker")
+st.markdown(
+    "**Segregation of Duties (SoD)** is a core banking control that ensures no single person "
+    "can both *initiate* and *approve* a high-risk action — the structural safeguard that was "
+    "missing at PNB. When Gokulnath Shetty held both `ISSUE_LOU` (initiate) and `APPROVE_LOU` "
+    "(authorise) on the same identity, there was no second pair of eyes. AegisPAM detects these "
+    "toxic entitlement combinations **before any transaction is attempted**, not after.\n\n"
+    "**Maker-Checker** enforces the same principle at the transaction level: a financial action "
+    "above a user's authorisation limit must be approved by a *different* person. The system "
+    "hard-blocks self-approval — if the same user tries to approve their own request, the status "
+    "is set to `SELF_APPROVAL_BLOCKED` and the transaction does not proceed."
 )
 st.divider()
 
@@ -23,8 +29,12 @@ tab_sod, tab_mc = st.tabs(["SoD Conflict Scan", "Maker-Checker Requests"])
 
 # ── SoD Conflict Scan ─────────────────────────────────────────────────────────
 with tab_sod:
-    st.subheader("SoD Matrix")
-    st.caption("Forbidden entitlement pairs and their severity levels.")
+    st.subheader("SoD Conflict Rules")
+    st.caption(
+        "The four forbidden entitlement pairs built into AegisPAM's Finacle-grounded control matrix. "
+        "Any user whose effective entitlements include both columns A and B for a given rule is in violation. "
+        "`SOD-001` is the exact combination that made the PNB fraud structurally possible."
+    )
 
     sod_data = []
     for ent_a, ent_b, rule_id, severity in roles_module.SOD_MATRIX:
@@ -38,6 +48,11 @@ with tab_sod:
 
     st.divider()
     st.subheader("Live Conflict Scan — All Users")
+    st.caption(
+        "Scans every seeded user's effective entitlements (role entitlements + any extra privileges granted) "
+        "against the SoD rule matrix. A match means one person holds a toxic pair — flag raised immediately, "
+        "no fraudulent action required to trigger it."
+    )
 
     if st.button("Run Conflict Scan", type="primary"):
         try:
@@ -69,6 +84,7 @@ with tab_sod:
 
     st.divider()
     st.subheader("Per-User Conflict Scan")
+    st.caption("Drill into a specific user to see which rules they violate and which entitlements are in conflict.")
     user_ids = [u.user_id for u in roles_module.get_all_users()]
     selected = st.selectbox("Select user", user_ids,
                             format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}")
@@ -94,8 +110,10 @@ with tab_sod:
 with tab_mc:
     st.subheader("Submit Financial Action (Maker)")
     st.caption(
-        "Actions exceeding the maker's auth_limit enter PENDING state and require "
-        "a distinct checker. Self-approval is blocked."
+        "The **maker** is the person initiating the financial action. "
+        "If the amount is within their authorisation limit, the system auto-approves it. "
+        "If it exceeds the limit, the request enters `PENDING` state and must be reviewed by a separate checker — "
+        "the maker cannot approve it themselves."
     )
 
     with st.form("maker_form"):
@@ -136,7 +154,12 @@ with tab_mc:
 
     st.divider()
     st.subheader("Checker Decision")
-    st.caption("Approve or reject a pending request. Self-approval returns SELF_APPROVAL_BLOCKED.")
+    st.caption(
+        "The **checker** is the second person who reviews and approves or rejects a pending request. "
+        "They must be a different user from the maker — if the same user ID is submitted, "
+        "the system returns `SELF_APPROVAL_BLOCKED` and the transaction is halted. "
+        "No override exists; a genuinely different approver is required."
+    )
 
     with st.form("checker_form"):
         req_id_in = st.text_input("Request ID")

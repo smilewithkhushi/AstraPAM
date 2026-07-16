@@ -75,10 +75,50 @@ Every existing control was looking at the transaction. None was looking for the 
 | 🚨 | **SOC Mitigation Console** | One-click freeze / block / unblock / hold / revoke-session / require-step-up. All console actions are maker-checker'd and written to the signed audit chain. | *Who watches the watchmen? The chain does.* |
 | 🔐 | **Post-Quantum Cryptography** | ML-KEM-768 (FIPS 203) hybrid KEM + ML-DSA-65 (FIPS 204) on a hash-chained audit log. Real artifact sizes on screen — proof the KEM ran. CBOM scanner flags quantum-vulnerable calls. | *Harvest-Now-Decrypt-Later is a present-day risk.* |
 | 🤖 | **Non-Human Identity Governance** | Service accounts and AI-agent credentials with named owners, mandatory expiry, and auto-revocation. | *Machine identities outnumber humans 82:1 — and they bypass MFA.* |
+| 📋 | **Unified Activity Log + Audit Reports** | Time-sorted event stream across all five control-plane sources. One-click PDF generation of banking-grade audit reports (7-day and 30-day) with NIM-authored narrative, sourced from live system-of-record data. | *Every quantitative figure is pulled at generation time — no manual data wrangling.* |
 
 ---
 
-## 🖥️ Screenshots
+## 🖥️ Dashboard Pages
+
+AegisPAM ships as a 9-page Streamlit dashboard, each page independently demoable.
+
+### Page 1 — Risk Engine
+Custom session input via sidebar sliders (all 7 CERT features with per-feature tooltips). CSV/JSON log upload pre-fills sliders. Outputs:
+- Plotly gauge dial with threshold colour bands (green / yellow / orange / red)
+- SHAP bar chart (red = raises risk, green = lowers) with named attack tags
+- Radar chart overlaying this session vs. normal and malicious baselines
+- Raw feature table with threshold column and per-row ⚠️/✅ flagging
+
+### Page 2 — Access Control
+Zero-standing-privilege grant lifecycle. Submit an access request → get a JIT ephemeral grant scoped to a single target with a TTL. Risk-adaptive decision engine (`allow / throttle / step_up / deny`). Break-glass override path visible and audited.
+
+### Page 3 — Reconciliation
+Trigger a privileged financial action, then run cross-channel diff against the mock CBS ledger. Missing entry → severity-tiered alert (`critical / high / medium / low`) with recommended response playbook. Surfaces the exact fraud signature from PNB.
+
+### Page 4 — Compliance
+CBOM scanner across the live codebase — flags quantum-vulnerable cryptographic calls vs. NIST-safe ones. NHI governance: service-account and AI-agent credential inventory with owner, expiry, and status. Regulatory alignment matrix (RBI CSF, IT Governance 2024, Apr-2026 Authentication Directions).
+
+### Page 5 — Roles & Trace
+Finacle-grounded role tier table (T1 Teller → T5 IT Admin + NHI service tier). User browser showing effective entitlements, branch/SOL, and privilege-creep extras. Trace panel: paste any `correlation_id` → full reconstructed timeline across grants, actions, alerts, maker-checker decisions, and console responses — every actor shown by name and role, not bare user ID.
+
+### Page 6 — SoD & Maker-Checker
+Live SoD conflict scan across all 8 seeded users. Toxic-pair matrix (4 rules, `critical` and `high` severity). Per-user deep scan. Maker-checker submission form: actions within authorization limit auto-approved; above it → `PENDING`. Self-approval path returns `SELF_APPROVAL_BLOCKED` — enforced at the API layer.
+
+### Page 7 — Console
+SOC operator mitigation console. Actions: `FREEZE`, `BLOCK`, `UNBLOCK`, `HOLD`, `REVOKE_SESSION`, `REQUIRE_STEPUP`. Mandatory reason field. `BLOCK` requires a distinct approver — self-approval rejected with 422. Every action appended to the ML-DSA-65 signed hash chain. Action history table + one-click chain verification.
+
+### Page 8 — Exposure
+Standing Exposure Score for every user — six static/identity components (privilege breadth, financial authority, SoD conflicts held, dormancy, credential age, NHI flag), deterministic formula, no behavioral features. Interactive Plotly 2×2 quadrant: **Behavioral Risk × Standing Exposure**. `user_007` (Gokulnath Shetty) sits top-left — high structural danger, normal behavior. That's where PNB lived for seven years.
+
+### Page 9 — Logs & Reports
+**Tab 1 — Activity Logs:** Unified time-sorted event stream pulling from all five sources (Audit Chain, Access Grants, Recon Alerts, Console Actions, Maker-Checker). Multi-source filter, inline detail rows (correlation ID, break-glass flag, hash snippet, amount, reason, approver). Auto-refresh.
+
+**Tab 2 — Reports:** Banking-grade internal audit reports generated on demand. 7-day and 30-day windows. Each report includes: cover page with report ID and classification, NIM-authored executive summary grounded in live metrics, access control summary, behavioral risk engine results, reconciliation findings, NHI governance, audit chain integrity, key findings, and regulatory alignment matrix. Download as PDF.
+
+---
+
+## 🖼️ Screenshots
 
 <table>
   <tr>
@@ -121,6 +161,7 @@ Every existing control was looking at the transaction. None was looking for the 
 | **Data** | SQLite | Zero-setup, fully local |
 | **Dashboard** | Streamlit (multipage) | Live UI without a JS toolchain |
 | **Dataset** | CMU CERT Insider Threat r4.2 | Public academic benchmark — results are comparable |
+| **Report NLG** | NVIDIA NIM (Llama-3.1-70B) | Narrative sections grounded in live system metrics |
 
 ---
 
@@ -133,12 +174,14 @@ cd AegisPAM
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env          # no secrets required for local demo
+cp .env.example .env          # set NVIDIA_NIM_API_KEY for report generation (optional)
 
 ./script.sh                   # starts mock CBS, control API, and dashboard in one go
 ```
 
 Open **http://localhost:8501** 🎉
+
+> **Note:** The report generation feature (Page 9 → Reports tab) requires `NVIDIA_NIM_API_KEY`. All other pages work without it.
 
 ---
 
@@ -146,17 +189,17 @@ Open **http://localhost:8501** 🎉
 
 Follow one identity through the entire system. *(Named after the PNB deputy manager at the centre of the 2018 fraud.)*
 
-| # | Step | What you see |
-|---|---|---|
-| **1** | **SoD scan** | 🚨 `user_007` (Branch Manager @ SOL003) holds **`ISSUE_LOU` + `APPROVE_LOU`** → **CRITICAL `SOD-001`**. *The PNB precondition — flagged before anything happens.* |
-| **2** | **He acts anyway** | Issues an out-of-band LoU through the SWIFT-like channel at 02:14. |
-| **3** | **No ledger entry** | 🔴 Reconciliation fires: **CRITICAL — privileged financial action with no matching ledger entry.** |
-| **4** | **The AI explains** | Risk `0.87` → SHAP: off-hours (+0.31), first-time channel (+0.29), amount vs. peer baseline (+0.27). Tags: `OFF_HOURS_ACTIVITY`, `PRIVILEGE_ESCALATION`. |
-| **5** | **One-click mitigation** | ❄️ Operator hits **FREEZE**. Next access request → **denied**. A permanent BLOCK requires a **second approver** — self-approval is rejected. |
-| **6** | **Tamper-proof** | ✍️ Every step is ML-DSA-signed. Edit one historical record → `verify_chain()` breaks at that exact sequence number. |
-| **7** | **The blind spot** | 📊 On the 2×2, `user_007` sits **top-left**: high standing exposure, *normal* behavior. **Where PNB lived for seven years.** |
-
-**Click any `correlation_id` in the trace view to replay the whole chain.**
+| # | Step | Page | What you see |
+|---|---|---|---|
+| **1** | **SoD scan** | Page 6 | 🚨 `user_007` (Branch Manager @ SOL003) holds **`ISSUE_LOU` + `APPROVE_LOU`** → **CRITICAL `SOD-001`**. *The PNB precondition — flagged before anything happens.* |
+| **2** | **He acts anyway** | Page 2 | Issues an out-of-band LoU through the SWIFT-like channel at 02:14. |
+| **3** | **No ledger entry** | Page 3 | 🔴 Reconciliation fires: **CRITICAL — privileged financial action with no matching ledger entry.** |
+| **4** | **The AI explains** | Page 1 | Risk `0.87` → SHAP: off-hours (+0.31), first-time channel (+0.29), amount vs. peer baseline (+0.27). Tags: `OFF_HOURS_ACTIVITY`, `PRIVILEGE_ESCALATION`. |
+| **5** | **One-click mitigation** | Page 7 | ❄️ Operator hits **FREEZE**. Next access request → **denied**. A permanent BLOCK requires a **second approver** — self-approval is rejected. |
+| **6** | **Tamper-proof** | Page 7 | ✍️ Every step is ML-DSA-signed. Edit one historical record → `verify_chain()` breaks at that exact sequence number. |
+| **7** | **The blind spot** | Page 8 | 📊 On the 2×2, `user_007` sits **top-left**: high standing exposure, *normal* behavior. **Where PNB lived for seven years.** |
+| **8** | **Full trace** | Page 5 | Paste the `correlation_id` → complete timeline: SoD flag → grant → recon alert → risk score → freeze → audit record. Every actor named by role and branch. |
+| **9** | **Audit report** | Page 9 | Generate a 7-day PDF — NIM-authored narrative, every figure sourced live. Board-ready in two seconds. |
 
 ---
 

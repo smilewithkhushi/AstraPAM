@@ -244,7 +244,7 @@ with tab_reports:
             )
             st.markdown("&nbsp;", unsafe_allow_html=True)
             if st.button("Generate 7-Day Report", use_container_width=True, type="primary", key="gen_7d"):
-                with st.spinner("Collecting data and calling NVIDIA NIM for narrative…"):
+                with st.spinner("Compiling audit data and generating report…"):
                     try:
                         pdf_bytes = report_generator.generate_pdf(days=7)
                         fname = f"AegisPAM_Audit_7d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
@@ -269,7 +269,7 @@ with tab_reports:
             )
             st.markdown("&nbsp;", unsafe_allow_html=True)
             if st.button("Generate 30-Day Report", use_container_width=True, key="gen_30d"):
-                with st.spinner("Collecting data and calling NVIDIA NIM for narrative…"):
+                with st.spinner("Compiling audit data and generating report…"):
                     try:
                         pdf_bytes = report_generator.generate_pdf(days=30)
                         fname = f"AegisPAM_Audit_30d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
