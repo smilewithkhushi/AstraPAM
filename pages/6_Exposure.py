@@ -25,7 +25,7 @@ st.caption(
 )
 st.divider()
 
-tab_scores, tab_quadrant = st.tabs(["Individual Scores", "Risk × Exposure 2×2"])
+tab_scores, tab_quadrant, tab_orgmap = st.tabs(["Individual Scores", "Risk × Exposure 2×2", "🗺 Org Risk Map"])
 
 # ── Individual Scores ─────────────────────────────────────────────────────────
 with tab_scores:
@@ -202,3 +202,235 @@ with tab_quadrant:
         "Only the structural property — holding both ISSUE_LOU and APPROVE_LOU — reveals the risk. "
         "**Exposure ≠ risk. They are orthogonal. Both are needed.**"
     )
+
+# ── Org Risk Map ──────────────────────────────────────────────────────────────
+with tab_orgmap:
+    st.subheader("Organisation-Level Risk Map")
+    st.caption(
+        "Branch-level aggregation across four risk dimensions. "
+        "Green = within tolerance · Amber = elevated · Red = requires action. "
+        "**The key story:** SOL003 looks behaviorally quiet but carries the highest structural risk — "
+        "exactly how PNB went undetected for seven years."
+    )
+
+    import broker as _broker
+    import plotly.graph_objects as go
+
+    # ── Build branch data ────────────────────────────────────────────────────
+    try:
+        exp_resp = requests.get(f"{API}/exposure", timeout=5)
+        exp_map = {s["user_id"]: s["score"] for s in (exp_resp.json() if exp_resp.ok else [])}
+    except Exception:
+        exp_map = {}
+
+    try:
+        _broker.expire_stale()
+        active_grants = _broker.get_active_grants()
+    except Exception:
+        active_grants = []
+
+    try:
+        sod_conflicts = roles_module.scan_all_conflicts()
+        conflict_users = {c.user_id for c in sod_conflicts}
+    except Exception:
+        conflict_users = set()
+
+    BEH_RISK_MAP = {
+        "user_001": 0.71, "user_007": 0.09,
+    }
+    DEFAULT_BEH = 0.12
+
+    BRANCHES = ["SOL001", "SOL002", "SOL003", "SOL000"]
+    BRANCH_LABELS = {
+        "SOL001": "SOL001\nMumbai Main",
+        "SOL002": "SOL002\nPune Central",
+        "SOL003": "SOL003\nChandigarh",
+        "SOL000": "SOL000\nIT / NHI",
+    }
+
+    all_users = roles_module.get_all_users()
+    grants_by_user = {}
+    for g in active_grants:
+        grants_by_user.setdefault(g.user_id, 0)
+        grants_by_user[g.user_id] += 1
+
+    branch_stats: dict[str, dict] = {}
+    for branch in BRANCHES:
+        members = [u for u in all_users if u.branch_sol == branch]
+        if not members:
+            continue
+        avg_exp = sum(exp_map.get(u.user_id, 0.0) for u in members) / len(members)
+        avg_beh = sum(BEH_RISK_MAP.get(u.user_id, DEFAULT_BEH) for u in members) / len(members)
+        sod_count = sum(1 for u in members if u.user_id in conflict_users)
+        open_grants = sum(grants_by_user.get(u.user_id, 0) for u in members)
+        high_priv = sum(1 for u in members if u.role_id in ("T4_MANAGER", "T5_IT_ADMIN", "NHI_SERVICE"))
+        branch_stats[branch] = {
+            "members": members,
+            "avg_exposure": avg_exp,
+            "avg_beh_risk": avg_beh,
+            "sod_conflicts": sod_count,
+            "open_grants": open_grants,
+            "high_priv_users": high_priv,
+            "high_priv_pct": high_priv / len(members),
+        }
+
+    # ── Org summary bar ──────────────────────────────────────────────────────
+    total_users   = len(all_users)
+    total_sod     = len(sod_conflicts) if hasattr(sod_conflicts, '__len__') else 0
+    total_grants  = len(active_grants)
+    critical_branches = sum(
+        1 for b, s in branch_stats.items()
+        if s["avg_exposure"] > 0.55 or s["sod_conflicts"] > 0
+    )
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Total Identities", total_users, help="Across all branches incl. NHI")
+    m2.metric("SoD Conflicts", total_sod,
+              delta="CRITICAL" if total_sod > 0 else None,
+              delta_color="inverse")
+    m3.metric("Open Grants", total_grants,
+              help="Active JIT grants right now")
+    m4.metric("Branches at Risk", f"{critical_branches} / {len(branch_stats)}",
+              delta="requires review" if critical_branches > 0 else None,
+              delta_color="inverse")
+
+    st.divider()
+
+    # ── Plotly heatmap ───────────────────────────────────────────────────────
+    DIMENSIONS = ["Avg Exposure", "Avg Beh Risk", "SoD Conflicts", "High-Priv %", "Open Grants"]
+    branch_list = list(branch_stats.keys())
+
+    # Normalise each dimension to 0-1 for color scale
+    def _norm(vals: list[float]) -> list[float]:
+        mx = max(vals) if max(vals) > 0 else 1
+        return [v / mx for v in vals]
+
+    raw = {
+        "Avg Exposure":  [branch_stats[b]["avg_exposure"]    for b in branch_list],
+        "Avg Beh Risk":  [branch_stats[b]["avg_beh_risk"]    for b in branch_list],
+        "SoD Conflicts": [float(branch_stats[b]["sod_conflicts"]) for b in branch_list],
+        "High-Priv %":   [branch_stats[b]["high_priv_pct"]   for b in branch_list],
+        "Open Grants":   [float(branch_stats[b]["open_grants"])   for b in branch_list],
+    }
+
+    z_norm = [_norm(raw[d]) for d in DIMENSIONS]
+
+    annotation_text = []
+    fmt = {
+        "Avg Exposure":  lambda b: f"{branch_stats[b]['avg_exposure']:.2f}",
+        "Avg Beh Risk":  lambda b: f"{branch_stats[b]['avg_beh_risk']:.2f}",
+        "SoD Conflicts": lambda b: str(branch_stats[b]["sod_conflicts"]),
+        "High-Priv %":   lambda b: f"{branch_stats[b]['high_priv_pct']:.0%}",
+        "Open Grants":   lambda b: str(branch_stats[b]["open_grants"]),
+    }
+    for dim in DIMENSIONS:
+        annotation_text.append([fmt[dim](b) for b in branch_list])
+
+    fig_hm = go.Figure(go.Heatmap(
+        z=z_norm,
+        x=[BRANCH_LABELS[b] for b in branch_list],
+        y=DIMENSIONS,
+        text=annotation_text,
+        texttemplate="%{text}",
+        textfont=dict(size=13, color="white"),
+        colorscale=[
+            [0.0,  "#15803d"],
+            [0.45, "#f59e0b"],
+            [0.75, "#dc2626"],
+            [1.0,  "#7f1d1d"],
+        ],
+        showscale=True,
+        colorbar=dict(
+            title="Risk Level",
+            tickvals=[0, 0.5, 1],
+            ticktext=["Low", "Medium", "High"],
+            thickness=14,
+        ),
+        zmin=0, zmax=1,
+    ))
+
+    fig_hm.update_layout(
+        height=320,
+        margin=dict(l=10, r=10, t=30, b=10),
+        xaxis=dict(side="top", tickfont=dict(size=12)),
+        yaxis=dict(tickfont=dict(size=12)),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+
+    st.plotly_chart(fig_hm, use_container_width=True)
+
+    st.caption(
+        "Values shown are actuals. Color intensity reflects normalized severity relative to the highest-risk branch. "
+        "All five dimensions are independent — a branch can score low on behavioral risk and still be critical."
+    )
+
+    st.divider()
+
+    # ── Branch risk cards ────────────────────────────────────────────────────
+    st.subheader("Branch Risk Cards")
+
+    sorted_branches = sorted(
+        branch_list,
+        key=lambda b: (
+            branch_stats[b]["sod_conflicts"] * 0.5 +
+            branch_stats[b]["avg_exposure"] * 0.3 +
+            branch_stats[b]["avg_beh_risk"] * 0.2
+        ),
+        reverse=True,
+    )
+
+    for branch in sorted_branches:
+        s = branch_stats[branch]
+        is_critical = s["sod_conflicts"] > 0 or s["avg_exposure"] > 0.55
+        border_color = "#dc2626" if is_critical else ("#f59e0b" if s["avg_exposure"] > 0.35 else "#15803d")
+        risk_label   = "🔴 HIGH RISK" if is_critical else ("🟡 ELEVATED" if s["avg_exposure"] > 0.35 else "🟢 NORMAL")
+
+        with st.expander(
+            f"{risk_label}  ·  **{branch}** — {len(s['members'])} identities",
+            expanded=is_critical,
+        ):
+            st.markdown(
+                f'<div style="border-left:4px solid {border_color};padding-left:12px;margin-bottom:10px">',
+                unsafe_allow_html=True,
+            )
+
+            mc1, mc2, mc3, mc4 = st.columns(4)
+            mc1.metric("Avg Exposure",   f"{s['avg_exposure']:.2f}")
+            mc2.metric("Avg Beh Risk",   f"{s['avg_beh_risk']:.2f}")
+            mc3.metric("SoD Conflicts",  s["sod_conflicts"],
+                       delta="CRITICAL" if s["sod_conflicts"] > 0 else None,
+                       delta_color="inverse")
+            mc4.metric("Open Grants",    s["open_grants"])
+
+            # User roster
+            st.markdown("**Identities in this branch:**")
+            for u in s["members"]:
+                role = roles_module.get_role(u.role_id)
+                tier = role.tier if role else u.role_id
+                exp_score = exp_map.get(u.user_id, 0.0)
+                beh_score = BEH_RISK_MAP.get(u.user_id, DEFAULT_BEH)
+                has_sod = u.user_id in conflict_users
+                has_grant = u.user_id in grants_by_user
+
+                flags = []
+                if has_sod:   flags.append("⚠️ SoD conflict")
+                if has_grant: flags.append("🔑 active grant")
+                if exp_score > 0.6: flags.append("🔴 high exposure")
+                if beh_score > 0.5: flags.append("🟠 beh anomaly")
+
+                flag_str = "  ·  ".join(flags) if flags else "✅ clean"
+                st.markdown(
+                    f"&nbsp;&nbsp;`{u.user_id}` **{u.name}** ({tier}) "
+                    f"· exp `{exp_score:.2f}` · beh `{beh_score:.2f}` · {flag_str}"
+                )
+
+            if branch == "SOL003":
+                st.error(
+                    "**SOL003 is the PNB archetype branch.** "
+                    "`user_007` holds both `ISSUE_LOU` + `APPROVE_LOU` — SoD-001 CRITICAL. "
+                    "Behavioral risk appears normal (0.09). A UEBA system would give this branch a clean bill of health. "
+                    "AstraPAM doesn't."
+                )
+
+            st.markdown("</div>", unsafe_allow_html=True)

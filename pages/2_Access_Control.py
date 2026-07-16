@@ -95,6 +95,16 @@ st.markdown(
 
 st.divider()
 
+# ── JIT Infographic ────────────────────────────────────────────────────────────
+with st.expander("📖 What is Zero Standing Privilege? (click to expand)", expanded=False):
+    st.image(
+        "preview/diagram_zero_standing_privilege_light.png",
+        use_container_width=True,
+        caption="Zero Standing Privilege — JIT Access lifecycle. No permanent access. Every grant is ephemeral, scoped, and auto-revoked.",
+    )
+
+st.divider()
+
 # ── JIT ACCESS REQUEST (the star of the page) ──────────────────────────────────
 st.subheader("Request JIT Access")
 st.caption(
