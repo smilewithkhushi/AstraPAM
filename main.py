@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="AegisPAM", version="0", lifespan=lifespan)
+app = FastAPI(title="AstraPAM", version="0", lifespan=lifespan)
 
 
 # ── request bodies ────────────────────────────────────────────────────────────

@@ -1,8 +1,5 @@
-# 🛡️ AegisPAM
+# 🛡️ AstraPAM
 
-<p align="center">
-  <img src="preview/logo.png" alt="AegisPAM logo" width="220"/>
-</p>
 
 <p align="center">
   <strong>Zero-Standing-Privilege Control Plane for Indian Banks</strong><br/>
@@ -15,16 +12,11 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge"/>
 </p>
 
-<p align="center">
-  <strong>FinSpark'26</strong> · Bank of Maharashtra × IBA × DFS × COEP Pune<br/>
-  <em>Problem Statement 1 — Privileged Access Misuse & Insider Threat Detection</em>
-</p>
-
 ---
 
 ## Overview
 
-AegisPAM is a privileged access management platform built specifically for the structural gap that enabled the ₹14,000 crore PNB fraud — and that no existing PAM, UEBA, or SWIFT control can close.
+AstraPAM is a privileged access management platform built specifically for the structural gap that enabled the ₹14,000 crore PNB fraud — and that no existing PAM, UEBA, or SWIFT control can close.
 
 It combines three independent detection layers into a single control plane:
 
@@ -44,7 +36,7 @@ In 2018, two employees at Punjab National Bank issued fraudulent Letters of Unde
 
 What made them fraudulent was something no behavioral model can see: **they never produced a matching entry in the core ledger.** The fraud signature was an *absence*, not an anomaly. The SWIFT channel sat architecturally *outside* the Core Banking System, so the money moved through a door the books never saw.
 
-**AegisPAM detects that absence.** And goes one step further — it flags the *structural precondition* that made the fraud possible (one person holding both `ISSUE_LOU` and `APPROVE_LOU`) **before a single rupee moves.**
+**AstraPAM detects that absence.** And goes one step further — it flags the *structural precondition* that made the fraud possible (one person holding both `ISSUE_LOU` and `APPROVE_LOU`) **before a single rupee moves.**
 
 > Two independent lines of defence on the same failure mode:
 > **Segregation-of-Duties detection catches the *precondition*. Ledger reconciliation catches the *act*.**
@@ -63,7 +55,7 @@ Every existing control was looking at the transaction. None was looking for the 
 
 ---
 
-## ✨ What AegisPAM Does
+## ✨ What AstraPAM Does
 
 | # | Module | What it does | Why it matters |
 |---|---|---|---|
@@ -81,7 +73,7 @@ Every existing control was looking at the transaction. None was looking for the 
 
 ## 🖥️ Dashboard Pages
 
-AegisPAM ships as a 9-page Streamlit dashboard, each page independently demoable.
+AstraPAM ships as a 9-page Streamlit dashboard, each page independently demoable.
 
 ### Page 1 — Risk Engine
 Custom session input via sidebar sliders (all 7 CERT features with per-feature tooltips). CSV/JSON log upload pre-fills sliders. Outputs:
@@ -142,7 +134,7 @@ Standing Exposure Score for every user — six static/identity components (privi
 ## 🏗️ Architecture
 
 <p align="center">
-  <img src="preview/architecture.png" alt="AegisPAM architecture diagram"/>
+  <img src="preview/architecture.png" alt="AstraPAM architecture diagram"/>
 </p>
 
 **Design principle: contract-first.** Every module boundary is a Pydantic schema defined *once* in `schemas.py`. A single `correlation_id` is generated at session start and threaded through **every** artifact — session → action → ledger → risk → alert → console response → audit record.
@@ -168,8 +160,8 @@ Standing Exposure Score for every user — six static/identity components (privi
 ## 🚀 Quickstart
 
 ```bash
-git clone https://github.com/smilewithkhushi/AegisPAM
-cd AegisPAM
+git clone https://github.com/smilewithkhushi/AstraPAM
+cd AstraPAM
 
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -216,7 +208,7 @@ Every control maps to something RBI already requires:
 | Post-quantum readiness, Cryptographic Bill of Materials | **RBI Q-SAFE Committee / Quantum Whitepaper** |
 | Maker-checker dual authorization | **Core Banking standard control** |
 
-> ⚡ **The urgency:** RBI made real-time risk scoring and adaptive auth **mandatory three months ago**. AegisPAM is a direct implementation of a control banks are now *legally liable* for.
+> ⚡ **The urgency:** RBI made real-time risk scoring and adaptive auth **mandatory three months ago**. AstraPAM is a direct implementation of a control banks are now *legally liable* for.
 
 ---
 

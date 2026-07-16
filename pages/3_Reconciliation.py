@@ -1,4 +1,4 @@
-"""AegisPAM — Reconciliation page."""
+"""AstraPAM — Reconciliation page."""
 from __future__ import annotations
 
 import _sidebar
@@ -9,7 +9,7 @@ import reconcile
 from schemas import init_db
 
 st.set_page_config(
-    page_title="AegisPAM · Reconciliation",
+    page_title="AstraPAM · Reconciliation",
     page_icon="🛡",
     layout="wide",
     initial_sidebar_state="expanded",

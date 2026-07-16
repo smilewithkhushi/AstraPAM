@@ -65,7 +65,7 @@ fi
 
 echo ""
 echo "┌─────────────────────────────────────────┐"
-echo "│           AegisPAM is running            │"
+echo "│           AstraPAM is running            │"
 echo "├─────────────────────────────────────────┤"
 echo "│  Control API  →  http://localhost:$API_PORT   │"
 echo "│  API Docs     →  http://localhost:$API_PORT/docs │"

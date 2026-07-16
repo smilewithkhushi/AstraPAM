@@ -1,4 +1,4 @@
-"""AegisPAM — Compliance page."""
+"""AstraPAM — Compliance page."""
 from __future__ import annotations
 
 import _sidebar
@@ -10,7 +10,7 @@ import nhi as nhi_module
 from schemas import init_db
 
 st.set_page_config(
-    page_title="AegisPAM · Compliance",
+    page_title="AstraPAM · Compliance",
     page_icon="🛡",
     layout="wide",
     initial_sidebar_state="expanded",

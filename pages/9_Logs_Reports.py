@@ -228,7 +228,7 @@ with tab_reports:
 
     st.markdown("&nbsp;", unsafe_allow_html=True)
     st.markdown(
-        "Generates a banking-grade internal audit report sourced from live AegisPAM system-of-record data. "
+        "Generates a banking-grade internal audit report sourced from live AstraPAM system-of-record data. "
         "Every quantitative figure is pulled directly from the control plane at generation time. "
         "Reports are formatted for internal distribution and regulatory review."
     )
@@ -247,7 +247,7 @@ with tab_reports:
                 with st.spinner("Compiling audit data and generating report…"):
                     try:
                         pdf_bytes = report_generator.generate_pdf(days=7)
-                        fname = f"AegisPAM_Audit_7d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                        fname = f"AstraPAM_Audit_7d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
                         st.success("Report ready — click below to download.")
                         st.download_button(
                             "⬇ Download PDF",
@@ -272,7 +272,7 @@ with tab_reports:
                 with st.spinner("Compiling audit data and generating report…"):
                     try:
                         pdf_bytes = report_generator.generate_pdf(days=30)
-                        fname = f"AegisPAM_Audit_30d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                        fname = f"AstraPAM_Audit_30d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
                         st.success("Report ready — click below to download.")
                         st.download_button(
                             "⬇ Download PDF",

@@ -1,4 +1,4 @@
-"""AegisPAM — Banking-grade audit report generator.
+"""AstraPAM — Banking-grade audit report generator.
 
 Collects data from SQLite, calls NVIDIA NIM for narrative sections,
 renders a structured PDF in the style of an RBI internal audit report.
@@ -231,7 +231,7 @@ def _template_narrative(d: dict[str, Any]) -> dict[str, str]:
     avg = d["risk"]["avg_score"]
     return {
         "exec_summary": (
-            f"During the {d['period_days']}-day review period, AegisPAM processed "
+            f"During the {d['period_days']}-day review period, AstraPAM processed "
             f"{d['grants']['total']} privileged access grant(s) under Zero Standing Privilege controls, "
             f"with {d['grants']['bg']} break-glass override(s) recorded. "
             f"{d['recon_total']} cross-channel reconciliation alert(s) were raised against "
@@ -281,7 +281,7 @@ class _AuditPDF(FPDF):
         self.set_text_color(*WHITE)
         self.set_font("Helvetica", "B", 7.5)
         self.set_xy(8, 2.5)
-        self.cell(130, 6, _s("AegisPAM - PRIVILEGED ACCESS MANAGEMENT  |  INTERNAL AUDIT REPORT"))
+        self.cell(130, 6, _s("AstraPAM - PRIVILEGED ACCESS MANAGEMENT  |  INTERNAL AUDIT REPORT"))
         self.set_font("Helvetica", "", 7)
         self.set_xy(140, 2.5)
         self.cell(60, 6, _s(f"ID: {self._rid[:16]}..."), align="R")
@@ -379,7 +379,7 @@ def generate_pdf(days: int = 7) -> bytes:
     pdf.set_xy(12, 16)
     pdf.set_font("Helvetica", "B", 24)
     pdf.set_text_color(*WHITE)
-    pdf.cell(0, 11, "AegisPAM", ln=True)
+    pdf.cell(0, 11, "AstraPAM", ln=True)
 
     pdf.set_x(12)
     pdf.set_font("Helvetica", "", 12)
@@ -399,7 +399,7 @@ def generate_pdf(days: int = 7) -> bytes:
         ("Review Period",       period_str),
         ("Report Generated",    generated),
         ("Classification",      "INTERNAL - RESTRICTED"),
-        ("Prepared By",         "AegisPAM Automated Audit Engine"),
+        ("Prepared By",         "AstraPAM Automated Audit Engine"),
         ("Applicable Standard", "RBI Cyber Security Framework / IT Governance Directions 2024"),
         ("Problem Statement",   "PS-1 - Privileged Access Misuse & Insider Threat Detection"),
     ]
@@ -551,7 +551,7 @@ def generate_pdf(days: int = 7) -> bytes:
     pdf.set_text_color(*GRAY)
     pdf.multi_cell(
         0, 4.5,
-        _s("This report has been prepared by the AegisPAM Control Plane and is intended solely "
+        _s("This report has been prepared by the AstraPAM Control Plane and is intended solely "
            "for the use of authorised personnel within the institution. All findings and metrics "
            "are derived from system-of-record data as at the report generation date and reflect "
            "the state of privileged access controls during the review period. This document is "

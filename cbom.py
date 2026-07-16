@@ -184,7 +184,7 @@ def scan(root: str | None = None) -> CBOMReport:
         verdict = (
             f"QUANTUM-SAFE — {qs} quantum-safe primitive(s), {hyb} hybrid-PQC "
             "construction(s), 0 quantum-vulnerable algorithms detected. "
-            "AegisPAM's cryptographic posture is NIST PQC-aligned."
+            "AstraPAM's cryptographic posture is NIST PQC-aligned."
         )
     else:
         verdict = (

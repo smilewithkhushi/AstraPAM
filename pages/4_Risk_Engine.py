@@ -1,4 +1,4 @@
-"""AegisPAM — Risk Engine page."""
+"""AstraPAM — Risk Engine page."""
 from __future__ import annotations
 
 import json
@@ -11,7 +11,7 @@ import risk as risk_engine
 from schemas import init_db
 
 st.set_page_config(
-    page_title="AegisPAM · Risk Engine",
+    page_title="AstraPAM · Risk Engine",
     page_icon="🛡",
     layout="wide",
     initial_sidebar_state="expanded",

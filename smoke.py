@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AegisPAM end-to-end smoke test.
+"""AstraPAM end-to-end smoke test.
 
 Spins up mock_cbs (:8001) and the control API (:8000) as subprocesses using a
 throwaway database (database/aegispam_smoke.db), runs every phase acceptance
@@ -228,7 +228,7 @@ def test_phase4_crypto() -> None:
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
-    print(f"\n{HEAD}AegisPAM — end-to-end smoke test{RST}")
+    print(f"\n{HEAD}AstraPAM — end-to-end smoke test{RST}")
     print("Starting services…")
 
     if not start_services():

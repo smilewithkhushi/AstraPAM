@@ -1,4 +1,4 @@
-"""Shared constants used across all AegisPAM pages."""
+"""Shared constants used across all AstraPAM pages."""
 from __future__ import annotations
 
 API_URL = "http://localhost:8000"

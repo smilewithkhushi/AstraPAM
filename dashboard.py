@@ -1,4 +1,4 @@
-"""AegisPAM — Overview page (entry point).
+"""AstraPAM — Overview page (entry point).
 
 Run: streamlit run dashboard.py
 Requires: main API on :8000 + mock CBS on :8001 (./script.sh starts both).
@@ -13,7 +13,7 @@ import streamlit as st
 from schemas import init_db
 
 st.set_page_config(
-    page_title="AegisPAM",
+    page_title="AstraPAM",
     page_icon="🛡",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -29,7 +29,7 @@ with st.sidebar:
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
-st.title("AegisPAM")
+st.title("AstraPAM")
 st.markdown(
     "A privileged access control plane for simulated core-banking operations. "
     "Combines just-in-time access grants, behavioural risk scoring, cross-channel "

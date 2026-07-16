@@ -16,7 +16,7 @@ st.markdown(
     "**Segregation of Duties (SoD)** is a core banking control that ensures no single person "
     "can both *initiate* and *approve* a high-risk action — the structural safeguard that was "
     "missing at PNB. When Gokulnath Shetty held both `ISSUE_LOU` (initiate) and `APPROVE_LOU` "
-    "(authorise) on the same identity, there was no second pair of eyes. AegisPAM detects these "
+    "(authorise) on the same identity, there was no second pair of eyes. AstraPAM detects these "
     "toxic entitlement combinations **before any transaction is attempted**, not after.\n\n"
     "**Maker-Checker** enforces the same principle at the transaction level: a financial action "
     "above a user's authorisation limit must be approved by a *different* person. The system "
@@ -31,7 +31,7 @@ tab_sod, tab_mc = st.tabs(["SoD Conflict Scan", "Maker-Checker Requests"])
 with tab_sod:
     st.subheader("SoD Conflict Rules")
     st.caption(
-        "The four forbidden entitlement pairs built into AegisPAM's Finacle-grounded control matrix. "
+        "The four forbidden entitlement pairs built into AstraPAM's Finacle-grounded control matrix. "
         "Any user whose effective entitlements include both columns A and B for a given rule is in violation. "
         "`SOD-001` is the exact combination that made the PNB fraud structurally possible."
     )

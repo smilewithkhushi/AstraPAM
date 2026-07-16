@@ -176,7 +176,7 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=EPOCHS)
     args = ap.parse_args()
 
-    print("AegisPAM — LSTM-AE training")
+    print("AstraPAM — LSTM-AE training")
 
     if args.synth:
         print("  [demo mode] generating synthetic CERT-like data")
