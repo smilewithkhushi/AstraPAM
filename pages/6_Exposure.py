@@ -17,13 +17,12 @@ st.set_page_config(page_title="Exposure Score", page_icon="📊", layout="wide")
 
 API = _sidebar.API_URL
 
-st.title("Standing Exposure Score")
-st.caption(
-    "Orthogonal to behavioral risk — not an inverse of it. "
-    "**Exposure** = privilege breadth + financial authority + SoD conflicts + dormancy + credential age + NHI flag. "
-    "**The 2×2 quadrant is the key insight:** a behavioral model alone is structurally blind to the top-left (high exposure, normal behavior)."
+_sidebar.render_navbar("Exposure")
+_sidebar.render_page_header(
+    "📊", "Standing Exposure Score",
+    "Measures structural risk — what an identity is capable of doing, independent of what it has actually done. Exposure is computed from privilege breadth, financial authority, SoD violations, dormancy, credential age, and NHI flags.",
+    "The 2×2 quadrant plots exposure against behavioural risk to surface the most dangerous blind spot: high-exposure users who appear safe to anomaly detectors precisely because they have not yet acted.",
 )
-st.divider()
 
 tab_scores, tab_quadrant, tab_orgmap = st.tabs(["Individual Scores", "Risk × Exposure 2×2", "🗺 Org Risk Map"])
 

@@ -85,12 +85,12 @@ def _render_trace(trace: dict) -> None:
                 event = rec["payload"][:60]
             st.markdown(f"- seq `{rec['seq']}` | `{event}` | hash `{rec['hash'][:16]}…`")
 
-st.title("Roles & Trace")
-st.caption(
-    "Finacle-grounded role model (T1–T5 + NHI) and end-to-end correlation ID trace. "
-    "One correlation ID renders the complete story of a single event across all modules."
+_sidebar.render_navbar("Roles & Trace")
+_sidebar.render_page_header(
+    "🏦", "Roles & End-to-End Trace",
+    "Displays the full role hierarchy — T1 Teller through T5 IT Admin and NHI Service Accounts — modelled on the Finacle entitlement structure used in Indian public-sector banks.",
+    "Paste any correlation ID to reconstruct the complete timeline of a single event: the access request, risk score, grant or denial, CBS reconciliation outcome, and audit chain entry.",
 )
-st.divider()
 
 tab_roles, tab_users, tab_trace = st.tabs(["Role Definitions", "Bank Users", "Trace by Correlation ID"])
 

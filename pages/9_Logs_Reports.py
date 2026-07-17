@@ -12,7 +12,12 @@ import _sidebar
 st.set_page_config(page_title="Logs & Reports", page_icon="📋", layout="wide")
 API = _sidebar.API_URL
 
-st.title("Logs & Reports")
+_sidebar.render_navbar("Logs & Reports")
+_sidebar.render_page_header(
+    "📄", "Logs & Reports",
+    "A live feed of every access request, grant, reconciliation alert, and console action — filterable by user, decision type, and time window for rapid incident investigation.",
+    "Generate a banking-grade PDF audit report on demand, suitable for regulatory submission or post-incident review, covering the full control-plane activity for any selected period.",
+)
 
 tab_logs, tab_reports = st.tabs(["📄 Activity Logs", "📊 Reports"])
 

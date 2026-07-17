@@ -15,13 +15,12 @@ st.set_page_config(page_title="Mitigation Console", page_icon="🛡", layout="wi
 
 API = _sidebar.API_URL
 
-st.title("Mitigation Console")
-st.caption(
-    "SOC/Admin response panel. FREEZE is single-operator (reversible, urgent). "
-    "BLOCK requires a second approver — maker-checker mandatory. "
-    "Every action writes to the Dilithium-signed audit chain the operator cannot forge."
+_sidebar.render_navbar("Console")
+_sidebar.render_page_header(
+    "🚨", "SOC Mitigation Console",
+    "The security operations response panel. FREEZE is a reversible single-operator action for immediate containment; BLOCK requires a second approver, enforcing maker-checker even at the admin level.",
+    "Every action taken here is written to the Dilithium-signed audit chain — operators cannot alter or conceal their interventions after the fact.",
 )
-st.divider()
 
 tab_act, tab_hist = st.tabs(["Apply Action", "Action History"])
 

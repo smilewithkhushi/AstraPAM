@@ -24,11 +24,11 @@ with st.sidebar:
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
-st.title("Compliance")
-st.markdown(
-    "Non-Human Identity governance enforces mandatory expiry and owner attribution on every "
-    "service account, API key, and AI-agent credential. The Cryptographic Bill of Materials "
-    "provides a live audit of every algorithm in use, aligned to the RBI Q-SAFE CBOM workstream."
+_sidebar.render_navbar("Compliance")
+_sidebar.render_page_header(
+    "📋", "Compliance — NHI Governance & Cryptographic Inventory",
+    "Governs Non-Human Identities (service accounts, API keys, AI-agent credentials) with mandatory expiry dates and owner attribution — eliminating the orphaned credential risk that regulators increasingly flag during audits.",
+    "The Cryptographic Bill of Materials provides a live inventory of every algorithm in use across the system, aligned to the RBI Q-SAFE Committee's CBOM workstream for post-quantum readiness.",
 )
 
 # ── demo action panel ─────────────────────────────────────────────────────────
