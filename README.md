@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="preview/logo-astrapam.jpeg" alt="AstraPAM Logo" width="180"/>
+</p>
+
 # AstraPAM
 
 **Zero-Standing-Privilege control plane for Indian banks.**
@@ -58,6 +62,14 @@ Open **http://localhost:8501**
 6. **Page 8 (Exposure)** — `user_007` top-left on the 2×2: high structural danger, normal behavior
 7. **Page 5 (Trace)** — paste `correlation_id` → full timeline across all six control-plane sources
 8. **Page 9 (Reports)** — generate a banking-grade PDF audit report in two seconds
+
+---
+
+## Architecture
+
+<p align="center">
+  <img src="preview/architecture.png" alt="AstraPAM Architecture Diagram" width="800"/>
+</p>
 
 ---
 

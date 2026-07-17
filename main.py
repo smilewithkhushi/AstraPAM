@@ -4,6 +4,7 @@ from typing import Any
 import uuid
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import broker
@@ -24,6 +25,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AstraPAM", version="0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # tighten to Vercel URL in production
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ── request bodies ────────────────────────────────────────────────────────────
