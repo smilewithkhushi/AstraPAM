@@ -11,7 +11,6 @@ st.set_page_config(page_title="SoD & Maker-Checker", page_icon="⚖️", layout=
 
 API = _sidebar.API_URL
 
-_sidebar.render_navbar("SoD & Maker-Checker")
 _sidebar.render_page_header(
     "⚖️", "Segregation of Duties & Maker-Checker",
     "Detects toxic entitlement combinations — such as a single employee holding both ISSUE_LOU and APPROVE_LOU — before any fraudulent transaction can occur. This is the exact control that was absent during the ₹14,000 Cr PNB fraud.",
@@ -39,7 +38,6 @@ with tab_sod:
         })
     st.table(sod_data)
 
-    st.divider()
     _scan_left, _scan_right = st.columns(2)
 
     with _scan_left:

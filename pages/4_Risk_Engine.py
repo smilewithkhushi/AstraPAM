@@ -43,7 +43,6 @@ with st.sidebar:
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
-_sidebar.render_navbar("Risk Engine")
 _sidebar.render_page_header(
     "🧠", "Behavioural Risk Engine",
     "Scores each session using an LSTM autoencoder trained on the CMU CERT Insider Threat dataset — the largest public benchmark for insider risk detection. Every decision is backed by SHAP attribution, showing precisely which behaviours drove the score.",

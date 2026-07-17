@@ -24,7 +24,6 @@ with st.sidebar:
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
-_sidebar.render_navbar("Compliance")
 _sidebar.render_page_header(
     "📋", "Compliance — NHI Governance & Cryptographic Inventory",
     "Governs Non-Human Identities (service accounts, API keys, AI-agent credentials) with mandatory expiry dates and owner attribution — eliminating the orphaned credential risk that regulators increasingly flag during audits.",

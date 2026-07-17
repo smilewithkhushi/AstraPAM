@@ -29,7 +29,6 @@ with st.sidebar:
         st.rerun()
 
 # ── navbar + header ───────────────────────────────────────────────────────────
-_sidebar.render_navbar("Overview")
 _hcol, _logo_col = st.columns([6, 1])
 with _hcol:
     _sidebar.render_page_header(

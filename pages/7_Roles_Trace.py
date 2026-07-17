@@ -85,7 +85,6 @@ def _render_trace(trace: dict) -> None:
                 event = rec["payload"][:60]
             st.markdown(f"- seq `{rec['seq']}` | `{event}` | hash `{rec['hash'][:16]}…`")
 
-_sidebar.render_navbar("Roles & Trace")
 _sidebar.render_page_header(
     "🏦", "Roles & End-to-End Trace",
     "Displays the full role hierarchy — T1 Teller through T5 IT Admin and NHI Service Accounts — modelled on the Finacle entitlement structure used in Indian public-sector banks.",

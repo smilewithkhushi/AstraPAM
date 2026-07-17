@@ -15,7 +15,6 @@ st.set_page_config(page_title="Mitigation Console", page_icon="🛡", layout="wi
 
 API = _sidebar.API_URL
 
-_sidebar.render_navbar("Console")
 _sidebar.render_page_header(
     "🚨", "SOC Mitigation Console",
     "The security operations response panel. FREEZE is a reversible single-operator action for immediate containment; BLOCK requires a second approver, enforcing maker-checker even at the admin level.",

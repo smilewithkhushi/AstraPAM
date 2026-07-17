@@ -32,7 +32,6 @@ with st.sidebar:
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
-_sidebar.render_navbar("Access Control")
 _sidebar.render_page_header(
     "🛡", "Access Control — Zero Standing Privilege",
     "No identity holds permanent access to any privileged system. Every request is evaluated in real time — the risk engine scores the session, an adaptive decision is made, and a time-bound grant is issued or denied.",

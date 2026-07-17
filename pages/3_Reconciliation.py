@@ -23,7 +23,6 @@ with st.sidebar:
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
-_sidebar.render_navbar("Reconciliation")
 _sidebar.render_page_header(
     "🔍", "Cross-Channel Ledger Reconciliation",
     "Every privileged financial action recorded in AstraPAM is compared against the core-banking ledger in real time. If no matching CBS entry exists within the configured SLA window, an alert is raised immediately.",

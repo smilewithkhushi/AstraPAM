@@ -17,7 +17,6 @@ st.set_page_config(page_title="Exposure Score", page_icon="📊", layout="wide")
 
 API = _sidebar.API_URL
 
-_sidebar.render_navbar("Exposure")
 _sidebar.render_page_header(
     "📊", "Standing Exposure Score",
     "Measures structural risk — what an identity is capable of doing, independent of what it has actually done. Exposure is computed from privilege breadth, financial authority, SoD violations, dormancy, credential age, and NHI flags.",

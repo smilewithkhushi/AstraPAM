@@ -12,7 +12,6 @@ import _sidebar
 st.set_page_config(page_title="Logs & Reports", page_icon="📋", layout="wide")
 API = _sidebar.API_URL
 
-_sidebar.render_navbar("Logs & Reports")
 _sidebar.render_page_header(
     "📄", "Logs & Reports",
     "A live feed of every access request, grant, reconciliation alert, and console action — filterable by user, decision type, and time window for rapid incident investigation.",
