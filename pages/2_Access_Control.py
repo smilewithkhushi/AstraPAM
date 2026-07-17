@@ -93,8 +93,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.divider()
-
 # ── JIT Infographic ────────────────────────────────────────────────────────────
 with st.expander("📖 What is Zero Standing Privilege? (click to expand)", expanded=False):
     st.image(
@@ -188,6 +186,7 @@ with st.container(border=True):
                 "requested_at": datetime.now(timezone.utc).isoformat(),
                 "correlation_id": cid,
             }
+            data = None
             try:
                 resp = requests.post(
                     f"{_sidebar.API_URL}/access/request",
@@ -196,10 +195,8 @@ with st.container(border=True):
                 )
                 data = resp.json() if resp.ok else None
             except Exception:
-                # Fallback: call broker directly
                 try:
                     from schemas import AccessRequest as AR
-                    from datetime import datetime as dt
                     req_obj = AR(
                         user_id=req_user,
                         target=req_target,
@@ -209,90 +206,96 @@ with st.container(border=True):
                     )
                     data = broker.request_access(req_obj, features)
                 except Exception as e:
-                    data = None
                     st.error(f"Error: {e}")
 
             if data:
-                status = data.get("status", "")
-                risk = data.get("risk", {})
-                score = risk.get("score", data.get("score", 0))
-                decision = risk.get("decision", "deny" if "denied" in status else "allow")
-
-                DECISION_COLOR = {
-                    "allow": "#15803d", "throttle": "#b45309",
-                    "step_up": "#b45309", "deny": "#b91c1c",
+                st.session_state["jit_result"] = {
+                    "data": data, "cid": cid, "target": req_target,
                 }
-                DECISION_LABEL = {
-                    "allow": "✅ ALLOW", "throttle": "⚡ THROTTLE",
-                    "step_up": "🔐 STEP UP REQUIRED", "deny": "🚫 DENY",
-                }
-                color = DECISION_COLOR.get(decision, "#4a90d9")
-                label = DECISION_LABEL.get(decision, decision.upper())
 
-                st.markdown(
-                    f'<div style="background:{color};color:#fff;padding:12px 20px;border-radius:8px;'
-                    f'font-size:1.3rem;font-weight:700;text-align:center;margin-bottom:12px">'
-                    f'{label}</div>',
-                    unsafe_allow_html=True,
+        result = st.session_state.get("jit_result")
+        if result:
+            data       = result["data"]
+            cid        = result["cid"]
+            req_target = result["target"]
+
+            status   = data.get("status", "")
+            risk     = data.get("risk", {})
+            score    = risk.get("score", data.get("score", 0))
+            decision = risk.get("decision", "deny" if "denied" in status else "allow")
+
+            DECISION_COLOR = {
+                "allow": "#15803d", "throttle": "#b45309",
+                "step_up": "#b45309", "deny": "#b91c1c",
+            }
+            DECISION_LABEL = {
+                "allow": "✅ ALLOW", "throttle": "⚡ THROTTLE",
+                "step_up": "🔐 STEP UP REQUIRED", "deny": "🚫 DENY",
+            }
+            color = DECISION_COLOR.get(decision, "#4a90d9")
+            label = DECISION_LABEL.get(decision, decision.upper())
+
+            st.markdown(
+                f'<div style="background:{color};color:#fff;padding:12px 20px;border-radius:8px;'
+                f'font-size:1.3rem;font-weight:700;text-align:center;margin-bottom:12px">'
+                f'{label}</div>',
+                unsafe_allow_html=True,
+            )
+
+            m1, m2 = st.columns(2)
+            m1.metric("Risk Score", f"{score:.3f}", help="0 = safe, 1 = critical")
+            m2.metric("Correlation ID", f"`{cid[:10]}…`")
+
+            if decision == "allow":
+                grant = data.get("grant", {})
+                expires = grant.get("expires_at", "")
+                st.success(
+                    f"Grant issued → `{grant.get('grant_id','')[:12]}…`  \n"
+                    f"Target: `{req_target}` · Expires: `{expires[:19] if expires else '—'}`"
+                )
+                actor = data.get("actor", {})
+                if actor.get("role"):
+                    st.caption(f"Issued to: {actor['role']} @ {actor.get('branch','—')}")
+
+            elif decision == "throttle":
+                grant = data.get("grant", {})
+                st.warning(
+                    f"Grant issued with **rate cap ₹1,000** — elevated risk detected.  \n"
+                    f"Grant: `{grant.get('grant_id','')[:12]}…`"
                 )
 
-                m1, m2 = st.columns(2)
-                m1.metric("Risk Score", f"{score:.3f}", help="0 = safe, 1 = critical")
-                m2.metric("Correlation ID", f"`{cid[:10]}…`")
+            elif decision == "step_up":
+                st.warning(
+                    "**Additional authentication required.**  \n"
+                    "In production: MFA push or out-of-band approval. "
+                    "Grant is NOT issued until step-up is completed."
+                )
 
-                if decision == "allow":
-                    grant = data.get("grant", {})
-                    expires = grant.get("expires_at", "")
-                    st.success(
-                        f"Grant issued → `{grant.get('grant_id','')[:12]}…`  \n"
-                        f"Target: `{req_target}` · Expires: `{expires[:19] if expires else '—'}`"
-                    )
-                    actor = data.get("actor", {})
-                    if actor.get("role"):
-                        st.caption(f"Issued to: {actor['role']} @ {actor.get('branch','—')}")
+            elif decision == "deny" or status == "denied":
+                reason = data.get("reason", "Risk score exceeded threshold.")
+                st.error(f"**Access denied.** {reason}")
 
-                elif decision == "throttle":
-                    grant = data.get("grant", {})
-                    st.warning(
-                        f"Grant issued with **rate cap ₹1,000** — elevated risk detected.  \n"
-                        f"Grant: `{grant.get('grant_id','')[:12]}…`"
-                    )
+            tags = risk.get("attack_tags", data.get("attack_tags", []))
+            if tags:
+                st.markdown("**Attack tags:** " + " ".join(f'`{t}`' for t in tags))
 
-                elif decision == "step_up":
-                    st.warning(
-                        "**Additional authentication required.**  \n"
-                        "In production: MFA push or out-of-band approval. "
-                        "Grant is NOT issued until step-up is completed."
-                    )
-
-                elif decision == "deny" or status == "denied":
-                    reason = data.get("reason", "Risk score exceeded threshold.")
-                    st.error(f"**Access denied.** {reason}")
-
-                tags = risk.get("attack_tags", data.get("attack_tags", []))
-                if tags:
-                    st.markdown(
-                        "**Attack tags:** " +
-                        " ".join(f'`{t}`' for t in tags)
-                    )
-
-                factors = risk.get("top_factors", data.get("top_factors", []))
-                if factors:
-                    with st.expander("SHAP risk factors"):
-                        for f in factors:
-                            feat = f.get("feature", "")
-                            contrib = f.get("contribution", 0)
-                            bar_color = "#ef4444" if contrib > 0 else "#22c55e"
-                            bar_width = min(abs(contrib) * 300, 100)
-                            sign = "+" if contrib > 0 else ""
-                            st.markdown(
-                                f'<div style="display:flex;align-items:center;gap:10px;margin:3px 0">'
-                                f'<span style="font-family:monospace;min-width:140px;font-size:0.8rem">{feat}</span>'
-                                f'<div style="background:{bar_color};width:{bar_width}px;height:10px;border-radius:3px"></div>'
-                                f'<span style="font-size:0.8rem;color:{bar_color}">{sign}{contrib:.3f}</span>'
-                                f'</div>',
-                                unsafe_allow_html=True,
-                            )
+            factors = risk.get("top_factors", data.get("top_factors", []))
+            if factors:
+                with st.expander("SHAP risk factors"):
+                    for f in factors:
+                        feat    = f.get("feature", "")
+                        contrib = f.get("contribution", 0)
+                        bar_color = "#ef4444" if contrib > 0 else "#22c55e"
+                        bar_width = min(abs(contrib) * 300, 100)
+                        sign = "+" if contrib > 0 else ""
+                        st.markdown(
+                            f'<div style="display:flex;align-items:center;gap:10px;margin:3px 0">'
+                            f'<span style="font-family:monospace;min-width:140px;font-size:0.8rem">{feat}</span>'
+                            f'<div style="background:{bar_color};width:{bar_width}px;height:10px;border-radius:3px"></div>'
+                            f'<span style="font-size:0.8rem;color:{bar_color}">{sign}{contrib:.3f}</span>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
         else:
             st.markdown(
                 '<div style="border:2px dashed #334155;border-radius:8px;padding:40px;text-align:center;color:#64748b">'

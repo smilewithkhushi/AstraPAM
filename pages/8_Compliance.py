@@ -30,7 +30,6 @@ st.markdown(
     "service account, API key, and AI-agent credential. The Cryptographic Bill of Materials "
     "provides a live audit of every algorithm in use, aligned to the RBI Q-SAFE CBOM workstream."
 )
-st.divider()
 
 # ── demo action panel ─────────────────────────────────────────────────────────
 with st.container(border=True):

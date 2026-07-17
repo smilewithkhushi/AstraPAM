@@ -13,7 +13,6 @@ st.set_page_config(page_title="Logs & Reports", page_icon="📋", layout="wide")
 API = _sidebar.API_URL
 
 st.title("Logs & Reports")
-st.divider()
 
 tab_logs, tab_reports = st.tabs(["📄 Activity Logs", "📊 Reports"])
 

@@ -23,7 +23,6 @@ st.markdown(
     "hard-blocks self-approval — if the same user tries to approve their own request, the status "
     "is set to `SELF_APPROVAL_BLOCKED` and the transaction does not proceed."
 )
-st.divider()
 
 tab_sod, tab_mc = st.tabs(["SoD Conflict Scan", "Maker-Checker Requests"])
 
@@ -111,90 +110,93 @@ with tab_sod:
 
 # ── Maker-Checker ─────────────────────────────────────────────────────────────
 with tab_mc:
-    st.subheader("Submit Financial Action (Maker)")
-    st.caption(
-        "The **maker** is the person initiating the financial action. "
-        "If the amount is within their authorisation limit, the system auto-approves it. "
-        "If it exceeds the limit, the request enters `PENDING` state and must be reviewed by a separate checker — "
-        "the maker cannot approve it themselves."
-    )
+    _mc_left, _mc_right = st.columns(2)
 
-    with st.form("maker_form"):
-        maker_id = st.selectbox(
-            "Maker (initiating user)",
-            [u.user_id for u in roles_module.get_all_users()],
-            format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}",
+    with _mc_left:
+        st.subheader("Submit Financial Action (Maker)")
+        st.caption(
+            "The **maker** is the person initiating the financial action. "
+            "If the amount is within their authorisation limit, the system auto-approves it. "
+            "If it exceeds the limit, the request enters `PENDING` state and must be reviewed by a separate checker — "
+            "the maker cannot approve it themselves."
         )
-        amount = st.number_input("Amount (₹)", min_value=1.0, value=500000.0, step=10000.0)
-        cid_in = st.text_input("Correlation ID (optional — generated if blank)", value="")
-        submitted = st.form_submit_button("Submit")
 
-    if submitted:
-        try:
-            resp = requests.post(f"{API}/maker-checker/submit", json={
-                "grant_id": "demo",
-                "user_id": maker_id,
-                "amount": amount,
-                "correlation_id": cid_in,
-            }, timeout=5)
-            if resp.ok:
-                data = resp.json()
-                if data["status"] == "APPROVED":
-                    st.success(
-                        f"Auto-approved (within maker's auth_limit). "
-                        f"Correlation ID: `{data['correlation_id']}`"
-                    )
+        with st.form("maker_form"):
+            maker_id = st.selectbox(
+                "Maker (initiating user)",
+                [u.user_id for u in roles_module.get_all_users()],
+                format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}",
+            )
+            amount = st.number_input("Amount (₹)", min_value=1.0, value=500000.0, step=10000.0)
+            cid_in = st.text_input("Correlation ID (optional — generated if blank)", value="")
+            submitted = st.form_submit_button("Submit", use_container_width=True)
+
+        if submitted:
+            try:
+                resp = requests.post(f"{API}/maker-checker/submit", json={
+                    "grant_id": "demo",
+                    "user_id": maker_id,
+                    "amount": amount,
+                    "correlation_id": cid_in,
+                }, timeout=5)
+                if resp.ok:
+                    data = resp.json()
+                    if data["status"] == "APPROVED":
+                        st.success(
+                            f"Auto-approved (within maker's auth_limit). "
+                            f"Correlation ID: `{data['correlation_id']}`"
+                        )
+                    else:
+                        st.warning(
+                            f"Requires checker approval. Request ID: `{data['request_id']}` | "
+                            f"Correlation ID: `{data['correlation_id']}`"
+                        )
+                    st.json(data)
                 else:
-                    st.warning(
-                        f"Requires checker approval. Request ID: `{data['request_id']}` | "
-                        f"Correlation ID: `{data['correlation_id']}`"
-                    )
-                st.json(data)
-            else:
-                st.error(f"API error {resp.status_code}: {resp.text}")
-        except Exception as e:
-            st.error(f"Cannot reach API: {e}")
+                    st.error(f"API error {resp.status_code}: {resp.text}")
+            except Exception as e:
+                st.error(f"Cannot reach API: {e}")
 
-    st.divider()
-    st.subheader("Checker Decision")
-    st.caption(
-        "The **checker** is the second person who reviews and approves or rejects a pending request. "
-        "They must be a different user from the maker — if the same user ID is submitted, "
-        "the system returns `SELF_APPROVAL_BLOCKED` and the transaction is halted. "
-        "No override exists; a genuinely different approver is required."
-    )
-
-    with st.form("checker_form"):
-        req_id_in = st.text_input("Request ID")
-        checker_id = st.selectbox(
-            "Checker (approving user)",
-            [u.user_id for u in roles_module.get_all_users()],
-            format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}",
+    with _mc_right:
+        st.subheader("Checker Decision")
+        st.caption(
+            "The **checker** is the second person who reviews and approves or rejects a pending request. "
+            "They must be a different user from the maker — if the same user ID is submitted, "
+            "the system returns `SELF_APPROVAL_BLOCKED` and the transaction is halted. "
+            "No override exists; a genuinely different approver is required."
         )
-        approve = st.radio("Decision", ["Approve", "Reject"]) == "Approve"
-        decide = st.form_submit_button("Submit Decision")
 
-    if decide:
-        try:
-            resp = requests.post(f"{API}/maker-checker/decide", json={
-                "request_id": req_id_in,
-                "checker_id": checker_id,
-                "approve": approve,
-            }, timeout=5)
-            if resp.ok:
-                data = resp.json()
-                status = data["status"]
-                if status == "SELF_APPROVAL_BLOCKED":
-                    st.error("🚫 **SELF_APPROVAL_BLOCKED** — the checker and maker cannot be the same person.")
-                elif status == "APPROVED":
-                    st.success(f"✅ Approved by {checker_id}.")
+        with st.form("checker_form"):
+            req_id_in = st.text_input("Request ID")
+            checker_id = st.selectbox(
+                "Checker (approving user)",
+                [u.user_id for u in roles_module.get_all_users()],
+                format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}",
+            )
+            approve = st.radio("Decision", ["Approve", "Reject"]) == "Approve"
+            decide = st.form_submit_button("Submit Decision", use_container_width=True)
+
+        if decide:
+            try:
+                resp = requests.post(f"{API}/maker-checker/decide", json={
+                    "request_id": req_id_in,
+                    "checker_id": checker_id,
+                    "approve": approve,
+                }, timeout=5)
+                if resp.ok:
+                    data = resp.json()
+                    status = data["status"]
+                    if status == "SELF_APPROVAL_BLOCKED":
+                        st.error("🚫 **SELF_APPROVAL_BLOCKED** — the checker and maker cannot be the same person.")
+                    elif status == "APPROVED":
+                        st.success(f"✅ Approved by {checker_id}.")
+                    else:
+                        st.warning(f"Rejected by {checker_id}.")
+                    st.json(data)
                 else:
-                    st.warning(f"Rejected by {checker_id}.")
-                st.json(data)
-            else:
-                st.error(f"API error {resp.status_code}: {resp.text}")
-        except Exception as e:
-            st.error(f"Cannot reach API: {e}")
+                    st.error(f"API error {resp.status_code}: {resp.text}")
+            except Exception as e:
+                st.error(f"Cannot reach API: {e}")
 
     st.divider()
     st.subheader("All Maker-Checker Requests")

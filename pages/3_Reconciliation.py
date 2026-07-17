@@ -29,7 +29,6 @@ st.markdown(
     "This is the structural detection primitive that targets the PNB fraud signature: "
     "not an anomalous payment, but the complete absence of a ledger record."
 )
-st.divider()
 
 # ── demo flow panel ───────────────────────────────────────────────────────────
 with st.container(border=True):
