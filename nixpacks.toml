@@ -1,0 +1,5 @@
+[phases.install]
+cmds = [
+  "pip install --no-deps shap==0.52.0",
+  "pip install -r requirements.txt"
+]
