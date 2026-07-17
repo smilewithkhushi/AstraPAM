@@ -29,12 +29,16 @@ with st.sidebar:
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
-st.title("AstraPAM")
-st.markdown(
-    "A privileged access control plane for simulated core-banking operations. "
-    "Combines just-in-time access grants, behavioural risk scoring, cross-channel "
-    "ledger reconciliation, and post-quantum cryptographic audit — in a single local dashboard."
-)
+_hcol, _logo_col = st.columns([6, 1])
+with _hcol:
+    st.title("AstraPAM")
+    st.markdown(
+        "A privileged access control plane for simulated core-banking operations. "
+        "Combines just-in-time access grants, behavioural risk scoring, cross-channel "
+        "ledger reconciliation, and post-quantum cryptographic audit — in a single local dashboard."
+    )
+with _logo_col:
+    st.image("preview/logo-astrapam.jpeg", width=90)
 st.divider()
 
 # ── system health ─────────────────────────────────────────────────────────────
@@ -75,36 +79,36 @@ if critical_count:
 
 st.divider()
 
-# ── module summary ─────────────────────────────────────────────────────────────
-st.subheader("Modules")
-st.caption("Use the sidebar navigation to explore each module.")
+# # ── module summary ─────────────────────────────────────────────────────────────
+# st.subheader("Modules")
+# st.caption("Use the sidebar navigation to explore each module.")
 
-m1, m2, m3, m4 = st.columns(4)
+# m1, m2, m3, m4 = st.columns(4)
 
-with m1:
-    st.markdown("**Risk Engine**")
-    st.caption(
-        "Behavioural anomaly scoring via an LSTM autoencoder trained on the CERT Insider "
-        "Threat dataset. Every decision is explainable via SHAP attribution and named "
-        "attack-pattern tags."
-    )
-with m2:
-    st.markdown("**Access Control**")
-    st.caption(
-        "Just-in-time ephemeral grants with auto-expiry — no standing privilege. "
-        "Credentials are issued via a hybrid ML-KEM-768 + X25519 post-quantum handshake "
-        "and every event is written to a tamper-evident audit chain."
-    )
-with m3:
-    st.markdown("**Reconciliation**")
-    st.caption(
-        "Cross-channel ledger diffing that flags any privileged financial action with "
-        "no matching CBS entry — the structural detection primitive that targets the PNB "
-        "fraud signature."
-    )
-with m4:
-    st.markdown("**Compliance**")
-    st.caption(
-        "Non-Human Identity lifecycle governance with mandatory expiry and owner attribution. "
-        "Includes a live Cryptographic Bill of Materials aligned to the RBI Q-SAFE CBOM workstream."
-    )
+# with m1:
+#     st.markdown("**Risk Engine**")
+#     st.caption(
+#         "Behavioural anomaly scoring via an LSTM autoencoder trained on the CERT Insider "
+#         "Threat dataset. Every decision is explainable via SHAP attribution and named "
+#         "attack-pattern tags."
+#     )
+# with m2:
+#     st.markdown("**Access Control**")
+#     st.caption(
+#         "Just-in-time ephemeral grants with auto-expiry — no standing privilege. "
+#         "Credentials are issued via a hybrid ML-KEM-768 + X25519 post-quantum handshake "
+#         "and every event is written to a tamper-evident audit chain."
+#     )
+# with m3:
+#     st.markdown("**Reconciliation**")
+#     st.caption(
+#         "Cross-channel ledger diffing that flags any privileged financial action with "
+#         "no matching CBS entry — the structural detection primitive that targets the PNB "
+#         "fraud signature."
+#     )
+# with m4:
+#     st.markdown("**Compliance**")
+#     st.caption(
+#         "Non-Human Identity lifecycle governance with mandatory expiry and owner attribution. "
+#         "Includes a live Cryptographic Bill of Materials aligned to the RBI Q-SAFE CBOM workstream."
+#     )
