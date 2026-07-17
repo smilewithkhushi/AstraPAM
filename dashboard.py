@@ -41,6 +41,28 @@ with _logo_col:
     st.image("preview/logo-astrapam.jpeg", width=90)
 st.divider()
 
+# ── cbs simulation callout ────────────────────────────────────────────────────
+_cta_left, _cta_right = st.columns([5, 2])
+with _cta_left:
+    st.info(
+        "**Want to see AstraPAM intercept a real transaction?**\n\n"
+        "Open the **CBS Simulation** — a Core Banking System (CBS) portal inspired by "
+        "**Finacle**, Infosys's CBS software used by 1,000+ banks worldwide, including SBI and Bank of Baroda. "
+        "Log in as any bank employee, attempt a privileged action, and watch AstraPAM respond here in real time — "
+        "risk scores update, grants appear, alerts fire.",
+        icon="🏦",
+    )
+with _cta_right:
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.link_button(
+        "Open CBS Simulation →",
+        "https://cbs-simulation.vercel.app/",
+        use_container_width=True,
+        type="primary",
+    )
+
+st.divider()
+
 # ── system health ─────────────────────────────────────────────────────────────
 st.subheader("System Health")
 st.caption("Live snapshot across all four control modules.")
