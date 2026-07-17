@@ -32,11 +32,11 @@ with st.sidebar:
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
-st.title("🛡 Access Control — Zero Standing Privilege")
-st.markdown(
-    "**The core principle:** no identity holds permanent access to any privileged system. "
-    "Every action requires an explicit, time-bound grant — issued only after a real-time risk assessment. "
-    "The grant auto-expires. If nothing is running, zero active grants is the correct, healthy state."
+_sidebar.render_navbar("Access Control")
+_sidebar.render_page_header(
+    "🛡", "Access Control — Zero Standing Privilege",
+    "No identity holds permanent access to any privileged system. Every request is evaluated in real time — the risk engine scores the session, an adaptive decision is made, and a time-bound grant is issued or denied.",
+    "Grants auto-expire when their TTL elapses. Zero active grants is the correct and healthy state — it means no open doors exist anywhere in the system.",
 )
 
 # JIT Lifecycle strip

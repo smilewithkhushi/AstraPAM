@@ -43,11 +43,11 @@ with st.sidebar:
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
-st.title("Risk Engine")
-st.markdown(
-    "Session-level behavioural anomaly scoring via an LSTM autoencoder trained on the "
-    "CERT Insider Threat dataset. Score, contributing features, and named attack patterns "
-    "are surfaced together. Choose a session mode below, configure inputs if needed, then score."
+_sidebar.render_navbar("Risk Engine")
+_sidebar.render_page_header(
+    "🧠", "Behavioural Risk Engine",
+    "Scores each session using an LSTM autoencoder trained on the CMU CERT Insider Threat dataset — the largest public benchmark for insider risk detection. Every decision is backed by SHAP attribution, showing precisely which behaviours drove the score.",
+    "The engine identifies four named attack patterns (off-hours activity, lateral movement, mass data export, privilege escalation) based on feature thresholds, independent of the model's anomaly score.",
 )
 
 st.markdown("<br>", unsafe_allow_html=True)

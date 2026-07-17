@@ -28,18 +28,17 @@ with st.sidebar:
     if st.button("Refresh", width="stretch"):
         st.rerun()
 
-# ── header ────────────────────────────────────────────────────────────────────
+# ── navbar + header ───────────────────────────────────────────────────────────
+_sidebar.render_navbar("Overview")
 _hcol, _logo_col = st.columns([6, 1])
 with _hcol:
-    st.title("AstraPAM")
-    st.markdown(
-        "A privileged access control plane for simulated core-banking operations. "
-        "Combines just-in-time access grants, behavioural risk scoring, cross-channel "
-        "ledger reconciliation, and post-quantum cryptographic audit — in a single local dashboard."
+    _sidebar.render_page_header(
+        "🛡", "AstraPAM — Control Plane Overview",
+        "A privileged access management system built for Indian core banking — enforcing zero standing privilege, real-time risk scoring, and cryptographic audit on every sensitive action.",
+        "Use the navigation bar above to explore each control module, or open the CBS Simulation to trigger live access decisions and watch them surface here.",
     )
 with _logo_col:
     st.image("preview/logo-astrapam.jpeg", width=90)
-st.divider()
 
 # ── system health (left) + cbs callout (right) ───────────────────────────────
 _left, _right = st.columns([3, 2])

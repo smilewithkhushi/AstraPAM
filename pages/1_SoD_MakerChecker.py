@@ -11,17 +11,11 @@ st.set_page_config(page_title="SoD & Maker-Checker", page_icon="⚖️", layout=
 
 API = _sidebar.API_URL
 
-st.title("⚖️ Segregation of Duties & Maker-Checker")
-st.markdown(
-    "**Segregation of Duties (SoD)** is a core banking control that ensures no single person "
-    "can both *initiate* and *approve* a high-risk action — the structural safeguard that was "
-    "missing at PNB. When Gokulnath Shetty held both `ISSUE_LOU` (initiate) and `APPROVE_LOU` "
-    "(authorise) on the same identity, there was no second pair of eyes. AstraPAM detects these "
-    "toxic entitlement combinations **before any transaction is attempted**, not after.\n\n"
-    "**Maker-Checker** enforces the same principle at the transaction level: a financial action "
-    "above a user's authorisation limit must be approved by a *different* person. The system "
-    "hard-blocks self-approval — if the same user tries to approve their own request, the status "
-    "is set to `SELF_APPROVAL_BLOCKED` and the transaction does not proceed."
+_sidebar.render_navbar("SoD & Maker-Checker")
+_sidebar.render_page_header(
+    "⚖️", "Segregation of Duties & Maker-Checker",
+    "Detects toxic entitlement combinations — such as a single employee holding both ISSUE_LOU and APPROVE_LOU — before any fraudulent transaction can occur. This is the exact control that was absent during the ₹14,000 Cr PNB fraud.",
+    "Maker-Checker enforces dual authorisation at the transaction level: every high-value action requires a separate approver, and self-approval is hard-blocked by the system with no override path.",
 )
 
 tab_sod, tab_mc = st.tabs(["SoD Conflict Scan", "Maker-Checker Requests"])

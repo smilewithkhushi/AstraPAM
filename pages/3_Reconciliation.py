@@ -23,11 +23,11 @@ with st.sidebar:
         st.rerun()
 
 # ── header ────────────────────────────────────────────────────────────────────
-st.title("Cross-Channel Reconciliation")
-st.markdown(
-    "Flags every privileged financial action that has no matching entry in the core-banking ledger. "
-    "This is the structural detection primitive that targets the PNB fraud signature: "
-    "not an anomalous payment, but the complete absence of a ledger record."
+_sidebar.render_navbar("Reconciliation")
+_sidebar.render_page_header(
+    "🔍", "Cross-Channel Ledger Reconciliation",
+    "Every privileged financial action recorded in AstraPAM is compared against the core-banking ledger in real time. If no matching CBS entry exists within the configured SLA window, an alert is raised immediately.",
+    "This is the detection primitive that targets the PNB fraud pattern — not an anomalous transaction, but the structural absence of a ledger record that should always accompany one.",
 )
 
 # ── demo flow panel ───────────────────────────────────────────────────────────
