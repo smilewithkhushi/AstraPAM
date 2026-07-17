@@ -319,6 +319,11 @@ with col_radar:
         def _norm(d: dict) -> list[float]:
             return [min(d.get(k, 0) / m, 1.0) for k, m in zip(feats, maxes)]
 
+        def _hex_rgba(hex_color: str, alpha: float = 0.09) -> str:
+            h = hex_color.lstrip("#")
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            return f"rgba({r},{g},{b},{alpha})"
+
         def _trace(vals, name, clr, dash="solid"):
             v = vals + [vals[0]]
             l = feat_labels + [feat_labels[0]]
@@ -326,7 +331,7 @@ with col_radar:
                 r=v, theta=l, name=name,
                 line=dict(color=clr, dash=dash, width=2),
                 fill="toself",
-                fillcolor=clr + "18",
+                fillcolor=_hex_rgba(clr),
             )
 
         fig_r = go.Figure([
