@@ -304,7 +304,7 @@ with st.container(border=True):
 
 st.divider()
 
-# ── active JIT grants + audit chain ──────────────────────────────────────────
+# ── active JIT grants + audit chain + PQC vault (left) | demo utilities (right) ──
 col_grants, col_pqc = st.columns([3, 2])
 
 with col_grants:
@@ -381,8 +381,7 @@ with col_grants:
                     ev = rec.payload[:60]
                 st.caption(f"[{rec.seq}] `{ev}`  ·  hash `{rec.hash[:14]}…`")
 
-# ── PQC credential vault + demo actions ──────────────────────────────────────
-with col_pqc:
+    st.divider()
     st.subheader("PQC Credential Vault")
     st.caption(
         "Credentials are sealed with a real ML-KEM-768 + X25519/HKDF hybrid key exchange — "
@@ -392,7 +391,7 @@ with col_pqc:
     art = st.session_state.get("last_artifact")
 
     if art is None:
-        st.info("Run **Issue PQC Credential** below to see the live handshake output.")
+        st.info("Run **Issue PQC Credential** in the demo panel to see the live handshake output.")
     else:
         st.markdown(f"**Algorithm:** `{art.algorithm}`")
         b1, b2, b3 = st.columns(3)
@@ -401,7 +400,8 @@ with col_pqc:
         b3.metric("Shared Secret", f"{art.shared_secret_bytes} B", help="HKDF-derived session key")
         st.success("NIST FIPS 203 byte-counts confirmed — KEM is not simulated.")
 
-    st.divider()
+# ── demo utilities (right) ────────────────────────────────────────────────────
+with col_pqc:
     st.subheader("Demo Utilities")
 
     with st.container(border=True):

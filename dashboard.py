@@ -41,31 +41,8 @@ with _logo_col:
     st.image("preview/logo-astrapam.jpeg", width=90)
 st.divider()
 
-# ── cbs simulation callout ────────────────────────────────────────────────────
-_cta_left, _cta_right = st.columns([5, 2])
-with _cta_left:
-    st.info(
-        "**Want to see AstraPAM intercept a real transaction?**\n\n"
-        "Open the **CBS Simulation** — a Core Banking System (CBS) portal inspired by "
-        "**Finacle**, Infosys's CBS software used by 1,000+ banks worldwide, including SBI and Bank of Baroda. "
-        "Log in as any bank employee, attempt a privileged action, and watch AstraPAM respond here in real time — "
-        "risk scores update, grants appear, alerts fire.",
-        icon="🏦",
-    )
-with _cta_right:
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.link_button(
-        "Open CBS Simulation →",
-        "https://cbs-simulation.vercel.app/",
-        use_container_width=True,
-        type="primary",
-    )
-
-st.divider()
-
-# ── system health ─────────────────────────────────────────────────────────────
-st.subheader("System Health")
-st.caption("Live snapshot across all four control modules.")
+# ── system health (left) + cbs callout (right) ───────────────────────────────
+_left, _right = st.columns([3, 2])
 
 try:
     broker.expire_stale()
@@ -77,26 +54,44 @@ all_alerts     = reconcile.get_all_alerts()
 critical_count = sum(1 for a in all_alerts if a.severity == "critical")
 cs = st.session_state.get("chain_status") or crypto.verify_chain()
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Audit Chain",           "Intact" if cs["valid"] else "BROKEN",
-          help=f"{cs['length']} signed records")
-c2.metric("Active JIT Grants",     len(active_grants),
-          help="Zero is the correct state — zero standing privilege enforced")
-c3.metric("Reconciliation Alerts", len(all_alerts))
-c4.metric("Critical Alerts",       critical_count)
+with _left:
+    st.subheader("System Health")
+    st.caption("Live snapshot across all four control modules.")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Audit Chain",           "Intact" if cs["valid"] else "BROKEN",
+              help=f"{cs['length']} signed records")
+    m2.metric("Active JIT Grants",     len(active_grants),
+              help="Zero is the correct state — zero standing privilege enforced")
+    m3.metric("Reconciliation Alerts", len(all_alerts))
+    m4.metric("Critical Alerts",       critical_count)
 
-if cs["valid"]:
-    st.success(f"Audit chain intact — {cs['length']} Dilithium-signed records, hash chain unbroken.")
-else:
-    st.error(
-        f"Audit chain broken at seq={cs.get('first_bad_seq')} — "
-        "tamper or deletion detected. See Access Control."
+    if cs["valid"]:
+        st.success(f"Audit chain intact — {cs['length']} Dilithium-signed records, hash chain unbroken.")
+    else:
+        st.error(
+            f"Audit chain broken at seq={cs.get('first_bad_seq')} — "
+            "tamper or deletion detected. See Access Control."
+        )
+    if critical_count:
+        st.error(
+            f"{critical_count} critical reconciliation alert(s) require immediate action. "
+            "See Reconciliation."
+        )
+
+with _right:
+    st.subheader("Try it Live")
+    st.info(
+        "**Trigger AstraPAM from the bank side.**\n\n"
+        "Open the **CBS Simulation** — a Core Banking System portal inspired by "
+        "**Finacle** (Infosys), used by 1,000+ banks including SBI and Bank of Baroda. "
+        "Log in as any employee, attempt a transaction, and watch the metrics here update in real time.",
+        icon="🏦",
     )
-
-if critical_count:
-    st.error(
-        f"{critical_count} critical reconciliation alert(s) require immediate action. "
-        "See Reconciliation."
+    st.link_button(
+        "Open CBS Simulation →",
+        "https://cbs-simulation.vercel.app/",
+        use_container_width=True,
+        type="primary",
     )
 
 st.divider()

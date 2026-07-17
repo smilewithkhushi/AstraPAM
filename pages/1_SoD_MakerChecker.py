@@ -47,64 +47,67 @@ with tab_sod:
     st.table(sod_data)
 
     st.divider()
-    st.subheader("Live Conflict Scan — All Users")
-    st.caption(
-        "Scans every seeded user's effective entitlements (role entitlements + any extra privileges granted) "
-        "against the SoD rule matrix. A match means one person holds a toxic pair — flag raised immediately, "
-        "no fraudulent action required to trigger it."
-    )
+    _scan_left, _scan_right = st.columns(2)
 
-    if st.button("Run Conflict Scan", type="primary"):
-        try:
-            resp = requests.get(f"{API}/sod/conflicts", timeout=5)
-            conflicts = resp.json() if resp.ok else []
-        except Exception:
-            conflicts = [c.model_dump() for c in roles_module.scan_all_conflicts()]
+    with _scan_left:
+        st.subheader("Live Conflict Scan — All Users")
+        st.caption(
+            "Scans every seeded user's effective entitlements (role entitlements + any extra privileges granted) "
+            "against the SoD rule matrix. A match means one person holds a toxic pair — flag raised immediately, "
+            "no fraudulent action required to trigger it."
+        )
 
-        if not conflicts:
-            st.success("No SoD conflicts detected across all users.")
-        else:
-            st.error(f"**{len(conflicts)} SoD conflict(s) detected.**")
-            for c in conflicts:
-                badge = "🔴" if c["severity"] == "critical" else "🟠"
-                user = roles_module.get_user(c["user_id"])
-                name = user.name if user else c["user_id"]
-                st.markdown(
-                    f"{badge} **{c['rule_id']}** · **{c['severity'].upper()}** — "
-                    f"**{name}** (`{c['user_id']}`) holds both "
-                    f"`{c['entitlement_a']}` + `{c['entitlement_b']}`"
-                )
-                if c["rule_id"] == "SOD-001":
-                    st.warning(
-                        "This is the **PNB combination**: a single identity can both issue "
-                        "and approve Letters of Undertaking — the structural flaw that enabled "
-                        "₹11,400 Cr in unauthorised LoUs over 7 years. "
-                        "The system flags this before any fraudulent action."
+        if st.button("Run Conflict Scan", type="primary"):
+            try:
+                resp = requests.get(f"{API}/sod/conflicts", timeout=5)
+                conflicts = resp.json() if resp.ok else []
+            except Exception:
+                conflicts = [c.model_dump() for c in roles_module.scan_all_conflicts()]
+
+            if not conflicts:
+                st.success("No SoD conflicts detected across all users.")
+            else:
+                st.error(f"**{len(conflicts)} SoD conflict(s) detected.**")
+                for c in conflicts:
+                    badge = "🔴" if c["severity"] == "critical" else "🟠"
+                    user = roles_module.get_user(c["user_id"])
+                    name = user.name if user else c["user_id"]
+                    st.markdown(
+                        f"{badge} **{c['rule_id']}** · **{c['severity'].upper()}** — "
+                        f"**{name}** (`{c['user_id']}`) holds both "
+                        f"`{c['entitlement_a']}` + `{c['entitlement_b']}`"
                     )
+                    if c["rule_id"] == "SOD-001":
+                        st.warning(
+                            "This is the **PNB combination**: a single identity can both issue "
+                            "and approve Letters of Undertaking — the structural flaw that enabled "
+                            "₹11,400 Cr in unauthorised LoUs over 7 years. "
+                            "The system flags this before any fraudulent action."
+                        )
 
-    st.divider()
-    st.subheader("Per-User Conflict Scan")
-    st.caption("Drill into a specific user to see which rules they violate and which entitlements are in conflict.")
-    user_ids = [u.user_id for u in roles_module.get_all_users()]
-    selected = st.selectbox("Select user", user_ids,
-                            format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}")
-    if st.button("Scan user"):
-        try:
-            resp = requests.get(f"{API}/sod/conflicts/{selected}", timeout=5)
-            conflicts = resp.json() if resp.ok else []
-        except Exception:
-            u = roles_module.get_user(selected)
-            conflicts = [c.model_dump() for c in roles_module.scan_sod_conflicts(u)] if u else []
+    with _scan_right:
+        st.subheader("Per-User Conflict Scan")
+        st.caption("Drill into a specific user to see which rules they violate and which entitlements are in conflict.")
+        user_ids = [u.user_id for u in roles_module.get_all_users()]
+        selected = st.selectbox("Select user", user_ids,
+                                format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}")
+        if st.button("Scan user"):
+            try:
+                resp = requests.get(f"{API}/sod/conflicts/{selected}", timeout=5)
+                conflicts = resp.json() if resp.ok else []
+            except Exception:
+                u = roles_module.get_user(selected)
+                conflicts = [c.model_dump() for c in roles_module.scan_sod_conflicts(u)] if u else []
 
-        if not conflicts:
-            st.success(f"No SoD conflicts for {selected}.")
-        else:
-            for c in conflicts:
-                badge = "🔴" if c["severity"] == "critical" else "🟠"
-                st.error(
-                    f"{badge} **{c['rule_id']}** ({c['severity'].upper()}): "
-                    f"`{c['entitlement_a']}` + `{c['entitlement_b']}`"
-                )
+            if not conflicts:
+                st.success(f"No SoD conflicts for {selected}.")
+            else:
+                for c in conflicts:
+                    badge = "🔴" if c["severity"] == "critical" else "🟠"
+                    st.error(
+                        f"{badge} **{c['rule_id']}** ({c['severity'].upper()}): "
+                        f"`{c['entitlement_a']}` + `{c['entitlement_b']}`"
+                    )
 
 # ── Maker-Checker ─────────────────────────────────────────────────────────────
 with tab_mc:
