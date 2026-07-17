@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
+import os
 import uuid
 
 from fastapi import FastAPI, HTTPException
@@ -26,9 +27,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AstraPAM", version="0", lifespan=lifespan)
 
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+_origins = ["*"] if _raw_origins == "*" else [o.strip() for o in _raw_origins.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten to Vercel URL in production
+    allow_origins=_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

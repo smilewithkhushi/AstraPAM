@@ -3,6 +3,7 @@
 *.key
 *.pem
 *.p12
+.streamlit/secrets.toml
 
 # ── Python runtime ────────────────────────────────────────────────────────────
 .venv/

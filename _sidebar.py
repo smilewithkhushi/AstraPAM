@@ -1,8 +1,21 @@
 """Shared constants used across all AstraPAM pages."""
 from __future__ import annotations
 
-API_URL = "http://localhost:8000"
-CBS_URL = "http://localhost:8001"
+import os
+
+try:
+    import streamlit as st
+    def _get(key: str, default: str) -> str:
+        try:
+            return st.secrets[key]
+        except Exception:
+            return os.getenv(key, default)
+except ImportError:
+    def _get(key: str, default: str) -> str:  # type: ignore[misc]
+        return os.getenv(key, default)
+
+API_URL = _get("API_URL", "http://localhost:8000")
+CBS_URL = _get("CBS_URL", "http://localhost:8001")
 
 DECISION_COLOR = {
     "allow":    "#1a7a1a",
