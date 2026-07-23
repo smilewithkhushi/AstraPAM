@@ -9,21 +9,19 @@ import requests
 import streamlit as st
 
 import _sidebar
-import roles as roles_module
+from core import roles as roles_module
 
 st.set_page_config(page_title="Mitigation Console", page_icon="🛡", layout="wide")
 
 API = _sidebar.API_URL
 
 _sidebar.render_page_header(
-    "🚨", "SOC Mitigation Console",
-    "The security operations response panel. FREEZE is a reversible single-operator action for immediate containment; BLOCK requires a second approver, enforcing maker-checker even at the admin level.",
-    "Every action taken here is written to the Dilithium-signed audit chain — operators cannot alter or conceal their interventions after the fact.",
+    "🚨", "Security Response",
+    "Take action on a user when something looks wrong. Freeze them temporarily, block them entirely, or revoke their session. Every action requires a reason and is permanently logged.",
 )
 
 tab_act, tab_hist = st.tabs(["Apply Action", "Action History"])
 
-# ── Apply Action ──────────────────────────────────────────────────────────────
 with tab_act:
     st.subheader("Apply Mitigation Action")
 
@@ -34,12 +32,12 @@ with tab_act:
         operator_id = st.selectbox(
             "Operator (SOC analyst)",
             [u.user_id for u in ALL_USERS],
-            format_func=lambda uid: f"{uid} — {USER_MAP[uid].name}",
+            format_func=lambda uid: f"{uid}: {USER_MAP[uid].name}",
         )
         target_user_id = st.selectbox(
             "Target user",
             [u.user_id for u in ALL_USERS],
-            format_func=lambda uid: f"{uid} — {USER_MAP[uid].name}",
+            format_func=lambda uid: f"{uid}: {USER_MAP[uid].name}",
         )
         action = st.selectbox(
             "Action",
@@ -47,12 +45,12 @@ with tab_act:
         )
         reason = st.text_area("Reason (mandatory)", placeholder="e.g. SOC-2024-001: anomalous SWIFT activity detected")
         approver_id = st.selectbox(
-            "Approver (required for BLOCK — leave as operator for others)",
+            "Approver (required for BLOCK)",
             [u.user_id for u in ALL_USERS],
-            format_func=lambda uid: f"{uid} — {USER_MAP[uid].name}",
+            format_func=lambda uid: f"{uid}: {USER_MAP[uid].name}",
         )
         alert_cid = st.text_input(
-            "Correlation ID of triggering alert (optional — links console action to alert in trace)",
+            "Correlation ID of triggering alert (optional, links this action to the alert in trace)",
             value="",
         )
         submit = st.form_submit_button("Apply Action", type="primary")
@@ -74,7 +72,7 @@ with tab_act:
                 if resp.ok:
                     data = resp.json()
                     st.success(
-                        f"✅ Console action recorded. Status: **{data['status']}** | "
+                        f"✅ Action recorded. Status: **{data['status']}** | "
                         f"Action ID: `{data['action_id']}`"
                     )
                     if data["status"] == "APPLIED":
@@ -84,8 +82,7 @@ with tab_act:
                         )
                     elif data["status"] == "PENDING":
                         st.warning(
-                            "Action is PENDING — a second approver must confirm via the API "
-                            "(/console/action endpoint). Only then will the status update to APPLIED."
+                            "Action is pending. A second approver must confirm before it takes effect."
                         )
                     st.json(data)
                 else:
@@ -95,23 +92,21 @@ with tab_act:
                 st.error(f"Cannot reach API: {e}")
 
     st.divider()
-    st.subheader("Verify Audit Chain")
-    st.caption("Console actions are appended to the same Dilithium-signed chain — verify it hasn't been tampered.")
+    st.subheader("Verify Audit Log")
     if st.button("Verify chain"):
         try:
             resp = requests.get(f"{API}/crypto/verify", timeout=5)
             result = resp.json()
             if result.get("valid"):
-                st.success(f"✅ Chain intact — {result['length']} signed records, unbroken.")
+                st.success(f"✅ Audit log is intact. {result['length']} records, nothing altered.")
             else:
                 st.error(f"❌ Chain broken at seq={result.get('first_bad_seq')}. Tamper detected.")
         except Exception as e:
             st.error(f"Cannot reach API: {e}")
 
-# ── Action History ─────────────────────────────────────────────────────────────
 with tab_hist:
     st.subheader("Console Action History")
-    st.caption("Append-only. Operators cannot alter or remove their own records.")
+    st.caption("Past actions cannot be edited or deleted.")
 
     if st.button("Refresh history"):
         try:

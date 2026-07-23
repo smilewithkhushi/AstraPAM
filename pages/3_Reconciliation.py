@@ -5,8 +5,8 @@ import _sidebar
 import httpx
 import streamlit as st
 
-import reconcile
-from schemas import init_db
+from core import reconcile
+from core.schemas import init_db
 
 st.set_page_config(
     page_title="AstraPAM · Reconciliation",
@@ -17,34 +17,20 @@ st.set_page_config(
 
 init_db()
 
-with st.sidebar:
-    st.divider()
-    if st.button("↺ Refresh", use_container_width=True):
-        st.rerun()
-
-# ── header ────────────────────────────────────────────────────────────────────
 _sidebar.render_page_header(
-    "🔍", "Cross-Channel Ledger Reconciliation",
-    "Every privileged financial action recorded in AstraPAM is compared against the core-banking ledger in real time. If no matching CBS entry exists within the configured SLA window, an alert is raised immediately.",
-    "This is the detection primitive that targets the PNB fraud pattern — not an anomalous transaction, but the structural absence of a ledger record that should always accompany one.",
+    "🔍", "Transaction Reconciliation",
+    "Every financial action done through the system is cross-checked against the bank's core ledger. If something was done without a matching ledger entry, we flag it.",
 )
 
-# ── demo flow panel ───────────────────────────────────────────────────────────
+# ── simulation panel ──────────────────────────────────────────────────────────
 with st.container(border=True):
-    st.markdown("##### Simulate the PNB Pattern")
-    st.caption(
-        "Run Step 1 to inject an out-of-band SWIFT action with no ledger entry, "
-        "then Step 2 to surface it as a reconciliation alert."
-    )
-    step1, arrow, step2 = st.columns([2, 0.3, 2])
+    st.markdown("##### See it in action")
+    st.caption("Issue a SWIFT transaction with no bank record behind it, then run the check to see it get flagged.")
+    act_col, recon_col = st.columns(2)
 
-    with step1:
-        st.markdown("**Step 1 — Issue SWIFT LoU**")
-        st.caption(
-            "Posts a privileged financial action directly to Mock CBS — "
-            "bypassing the normal grant path, leaving no ledger record."
-        )
-        if st.button("Issue SWIFT LoU (no ledger entry)", use_container_width=True, type="primary"):
+    with act_col:
+        st.markdown("**Issue SWIFT transaction**")
+        if st.button("Issue SWIFT LoU (no ledger entry)", width="stretch", type="primary"):
             try:
                 resp = httpx.post(
                     f"{_sidebar.CBS_URL}/swift/action",
@@ -52,20 +38,13 @@ with st.container(border=True):
                           "description": "Fake LoU — PNB pattern"},
                     timeout=3,
                 )
-                st.success(f"Action issued — id=`{resp.json()['action_id'][:8]}…`")
+                st.success(f"Action issued, id=`{resp.json()['action_id'][:8]}…`")
             except Exception:
                 st.error("Start services first: `./script.sh`")
 
-    with arrow:
-        st.markdown("<div style='text-align:center;font-size:2rem;padding-top:2.5rem'>→</div>", unsafe_allow_html=True)
-
-    with step2:
-        st.markdown("**Step 2 — Run Reconciliation**")
-        st.caption(
-            "Diffs the privileged-action log against the CBS ledger. "
-            "Any unmatched action becomes a severity-tiered alert below."
-        )
-        if st.button("Run reconciliation check", use_container_width=True):
+    with recon_col:
+        st.markdown("**Run the check**")
+        if st.button("Run reconciliation check", width="stretch"):
             try:
                 reconcile.sync_from_cbs()
                 new_alerts = reconcile.run(sla_seconds=0)
@@ -79,11 +58,7 @@ with st.container(border=True):
 st.divider()
 
 # ── alerts ────────────────────────────────────────────────────────────────────
-st.subheader("Reconciliation Alerts")
-st.caption(
-    "Alerts are severity-tiered. Each carries a one-line recommended response action "
-    "drawn from a lookup table — not generated text."
-)
+st.subheader("Alerts")
 
 alerts = reconcile.get_all_alerts()
 

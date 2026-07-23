@@ -1,7 +1,7 @@
 """Phase 9 — Standing Exposure Score + 2×2 behavioral-risk × standing-exposure quadrant.
 
 Exposure = what you COULD do (static/identity properties).
-Risk     = what you DID (behavioral, from Phase 0-5 LSTM engine).
+Risk     = what you DID (behavioral, from LSTM engine).
 Orthogonal, complementary, never redundant.
 """
 from __future__ import annotations
@@ -10,24 +10,30 @@ import requests
 import streamlit as st
 
 import _sidebar
-import risk as risk_engine
-import roles as roles_module
+from core import risk as risk_engine
+from core import roles as roles_module
 
 st.set_page_config(page_title="Exposure Score", page_icon="📊", layout="wide")
 
 API = _sidebar.API_URL
 
+# Behavioral risk values for the 2×2 quadrant demo
+_BEH_RISK_MAP = {
+    "user_001": 0.71,   # junior teller with anomalous behavior
+    "user_007": 0.09,   # PNB archetype: behaves normally, high structural exposure
+}
+_DEFAULT_BEH = 0.12
+
 _sidebar.render_page_header(
-    "📊", "Standing Exposure Score",
-    "Measures structural risk — what an identity is capable of doing, independent of what it has actually done. Exposure is computed from privilege breadth, financial authority, SoD violations, dormancy, credential age, and NHI flags.",
-    "The 2×2 quadrant plots exposure against behavioural risk to surface the most dangerous blind spot: high-exposure users who appear safe to anomaly detectors precisely because they have not yet acted.",
+    "📊", "User Exposure",
+    "Shows how much damage a user could cause, based on their role and access, not just what they have done so far. Some of the riskiest users look completely normal on the surface.",
 )
 
 tab_scores, tab_quadrant, tab_orgmap = st.tabs(["Individual Scores", "Risk × Exposure 2×2", "🗺 Org Risk Map"])
 
 # ── Individual Scores ─────────────────────────────────────────────────────────
 with tab_scores:
-    st.subheader("Exposure Scores — All Users")
+    st.subheader("All Users")
 
     try:
         resp = requests.get(f"{API}/exposure", timeout=5)
@@ -46,14 +52,14 @@ with tab_scores:
             tier = role.tier if role else "?"
 
             score_pct = s["score"] * 100
-            color = "#a00000" if score_pct > 60 else ("#b36b00" if score_pct > 35 else "#1a7a1a")
+            color = _sidebar.C_DENY if score_pct > 60 else (_sidebar.C_THROTTLE if score_pct > 35 else _sidebar.C_ALLOW)
             bar_html = (
-                f'<div style="background:#eee;border-radius:4px;height:8px;width:100%">'
+                f'<div style="background:#f3f4f6;border-radius:4px;height:8px;width:100%">'
                 f'<div style="background:{color};width:{score_pct:.1f}%;height:8px;border-radius:4px"></div></div>'
             )
 
             with st.expander(
-                f"**{name}** (`{s['user_id']}`) · {tier} — Exposure: **{score_pct:.1f}%**",
+                f"**{name}** (`{s['user_id']}`) · {tier} · Exposure: **{score_pct:.1f}%**",
                 expanded=("user_007" in s["user_id"]),
             ):
                 st.markdown(bar_html, unsafe_allow_html=True)
@@ -69,31 +75,19 @@ with tab_scores:
 
                 if "user_007" in s["user_id"]:
                     st.error(
-                        "🎯 **PNB archetype in the high-exposure / low-behavioral-risk quadrant.** "
-                        "This user behaves normally but carries the structural combination that "
-                        "enabled ₹11,400 Cr in fraud. A behavioral model alone is blind to this. "
-                        "Exposure score catches it."
+                        "This is the PNB profile. Gokulnath behaves like any normal branch manager, so a behaviour-based system would never flag him. But he holds the exact access combination that made the fraud possible. This page catches that."
                     )
 
 # ── 2×2 Quadrant ─────────────────────────────────────────────────────────────
 with tab_quadrant:
-    st.subheader("Risk × Exposure 2×2 Quadrant")
-    st.caption(
-        "x-axis: **Behavioral risk** (LSTM anomaly score, from Phase 0–5 engine). "
-        "y-axis: **Standing exposure** (identity properties only). "
-        "Top-left = the blind spot: high exposure, normal behavior. PNB archetype lives here."
-    )
+    st.subheader("Who is actually at risk?")
+    st.caption("Left to right: how suspicious their behaviour looks. Bottom to top: how much access they have. The danger zone is top-left, high access but nothing suspicious yet.")
 
     try:
-        import json
         exp_resp = requests.get(f"{API}/exposure", timeout=5)
         exposure_scores = {s["user_id"]: s["score"] for s in (exp_resp.json() if exp_resp.ok else [])}
     except Exception:
         exposure_scores = {}
-
-    # Compute behavioral risk for each user using normal-ish features
-    # (in a real system this comes from session telemetry)
-    from _sidebar import NORMAL_FEATURES, MAL_FEATURES
 
     try:
         import plotly.graph_objects as go
@@ -106,12 +100,7 @@ with tab_quadrant:
 
     for u in users:
         exp = exposure_scores.get(u.user_id, 0.0)
-        # Use saved behavioral risk or default to a low score for demo
-        beh_risk = 0.12  # default "normal" behavioral risk
-        if "user_007" in u.user_id:
-            beh_risk = 0.09  # PNB archetype: behaves normally
-        elif u.role_id == "T1_TELLER" and u.user_id == "user_001":
-            beh_risk = 0.71  # demo: junior teller with anomalous behavior
+        beh_risk = _BEH_RISK_MAP.get(u.user_id, _DEFAULT_BEH)
         role = roles_module.get_role(u.role_id)
         tier = role.tier if role else "?"
         points.append({
@@ -123,37 +112,32 @@ with tab_quadrant:
         })
 
     if PLOTLY:
-        import plotly.graph_objects as go
-
         fig = go.Figure()
 
-        # Quadrant background
         fig.add_shape(type="rect", x0=0, x1=0.5, y0=0.5, y1=1.0,
-                      fillcolor="rgba(160,0,0,0.07)", line_width=0)  # top-left: blind spot
+                      fillcolor="rgba(153,27,27,0.06)", line_width=0)
         fig.add_shape(type="rect", x0=0.5, x1=1.0, y0=0.5, y1=1.0,
-                      fillcolor="rgba(163,107,0,0.07)", line_width=0)  # top-right: highest risk
+                      fillcolor="rgba(146,64,14,0.06)", line_width=0)
         fig.add_shape(type="rect", x0=0, x1=0.5, y0=0, y1=0.5,
-                      fillcolor="rgba(26,122,26,0.07)", line_width=0)  # bottom-left: safe
+                      fillcolor="rgba(22,101,52,0.06)", line_width=0)
         fig.add_shape(type="rect", x0=0.5, x1=1.0, y0=0, y1=0.5,
-                      fillcolor="rgba(163,107,0,0.07)", line_width=0)  # bottom-right: behavior-only risk
+                      fillcolor="rgba(146,64,14,0.06)", line_width=0)
 
-        # Quadrant dividers
-        fig.add_shape(type="line", x0=0.5, x1=0.5, y0=0, y1=1, line=dict(color="#aaa", dash="dash"))
-        fig.add_shape(type="line", x0=0, x1=1, y0=0.5, y1=0.5, line=dict(color="#aaa", dash="dash"))
+        fig.add_shape(type="line", x0=0.5, x1=0.5, y0=0, y1=1, line=dict(color="#d1d5db", dash="dash"))
+        fig.add_shape(type="line", x0=0, x1=1, y0=0.5, y1=0.5, line=dict(color="#d1d5db", dash="dash"))
 
-        # Quadrant labels
         fig.add_annotation(x=0.25, y=0.97, text="⚠️ HIGH EXPOSURE<br>LOW RISK<br>(blind spot)", showarrow=False,
-                           font=dict(size=11, color="#a00000"), align="center")
+                           font=dict(size=11, color=_sidebar.C_DENY), align="center")
         fig.add_annotation(x=0.75, y=0.97, text="🔴 HIGH EXPOSURE<br>HIGH RISK<br>(act now)", showarrow=False,
-                           font=dict(size=11, color="#a00000"), align="center")
+                           font=dict(size=11, color=_sidebar.C_DENY), align="center")
         fig.add_annotation(x=0.25, y=0.03, text="🟢 LOW EXPOSURE<br>LOW RISK<br>(safe)", showarrow=False,
-                           font=dict(size=11, color="#1a7a1a"), align="center")
+                           font=dict(size=11, color=_sidebar.C_ALLOW), align="center")
         fig.add_annotation(x=0.75, y=0.03, text="🟠 LOW EXPOSURE<br>HIGH RISK<br>(monitor)", showarrow=False,
-                           font=dict(size=11, color="#b36b00"), align="center")
+                           font=dict(size=11, color=_sidebar.C_THROTTLE), align="center")
 
         for p in points:
             is_pnb = "user_007" in p["user_id"]
-            color = "#a00000" if is_pnb else "#4a90d9"
+            color = _sidebar.C_DENY if is_pnb else _sidebar.C_INFO
             size = 16 if is_pnb else 10
             fig.add_trace(go.Scatter(
                 x=[p["behavioral_risk"]],
@@ -178,11 +162,11 @@ with tab_quadrant:
             yaxis=dict(title="Standing Exposure Score", range=[0, 1], tickformat=".0%"),
             height=500,
             margin=dict(l=40, r=40, t=40, b=40),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="#f9fafb",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
-        # Fallback: text-based table if plotly not installed
-        st.warning("Install `plotly` for the interactive 2×2 chart.")
         for p in points:
             q_x = "HIGH" if p["behavioral_risk"] > 0.5 else "LOW"
             q_y = "HIGH" if p["exposure"] > 0.5 else "LOW"
@@ -193,28 +177,17 @@ with tab_quadrant:
 
     st.divider()
     st.info(
-        "**The insight this quadrant delivers:**\n\n"
-        "Gokulnath Shetty (the PNB archetype) sits in the **top-left** — high standing exposure, "
-        "normal behavioral risk. A behavioral anomaly model trained on session data would never flag him. "
-        "He behaves exactly like a legitimate Branch Manager. "
-        "Only the structural property — holding both ISSUE_LOU and APPROVE_LOU — reveals the risk. "
-        "**Exposure ≠ risk. They are orthogonal. Both are needed.**"
+        "Gokulnath (the PNB case) lands in the top-left. His day-to-day behaviour looks completely normal, so any system that only watches what people do would give him a clean pass. What gives him away is what he is allowed to do. Behaviour monitoring and access monitoring are not the same thing."
     )
 
 # ── Org Risk Map ──────────────────────────────────────────────────────────────
 with tab_orgmap:
-    st.subheader("Organisation-Level Risk Map")
-    st.caption(
-        "Branch-level aggregation across four risk dimensions. "
-        "Green = within tolerance · Amber = elevated · Red = requires action. "
-        "**The key story:** SOL003 looks behaviorally quiet but carries the highest structural risk — "
-        "exactly how PNB went undetected for seven years."
-    )
+    st.subheader("Branch Overview")
+    st.caption("Risk across all branches at a glance. SOL003 looks quiet, but it carries the highest structural risk. That is exactly the pattern that went unnoticed at PNB for seven years.")
 
     import broker as _broker
     import plotly.graph_objects as go
 
-    # ── Build branch data ────────────────────────────────────────────────────
     try:
         exp_resp = requests.get(f"{API}/exposure", timeout=5)
         exp_map = {s["user_id"]: s["score"] for s in (exp_resp.json() if exp_resp.ok else [])}
@@ -232,11 +205,6 @@ with tab_orgmap:
         conflict_users = {c.user_id for c in sod_conflicts}
     except Exception:
         conflict_users = set()
-
-    BEH_RISK_MAP = {
-        "user_001": 0.71, "user_007": 0.09,
-    }
-    DEFAULT_BEH = 0.12
 
     BRANCHES = ["SOL001", "SOL002", "SOL003", "SOL000"]
     BRANCH_LABELS = {
@@ -258,7 +226,7 @@ with tab_orgmap:
         if not members:
             continue
         avg_exp = sum(exp_map.get(u.user_id, 0.0) for u in members) / len(members)
-        avg_beh = sum(BEH_RISK_MAP.get(u.user_id, DEFAULT_BEH) for u in members) / len(members)
+        avg_beh = sum(_BEH_RISK_MAP.get(u.user_id, _DEFAULT_BEH) for u in members) / len(members)
         sod_count = sum(1 for u in members if u.user_id in conflict_users)
         open_grants = sum(grants_by_user.get(u.user_id, 0) for u in members)
         high_priv = sum(1 for u in members if u.role_id in ("T4_MANAGER", "T5_IT_ADMIN", "NHI_SERVICE"))
@@ -272,7 +240,6 @@ with tab_orgmap:
             "high_priv_pct": high_priv / len(members),
         }
 
-    # ── Org summary bar ──────────────────────────────────────────────────────
     total_users   = len(all_users)
     total_sod     = len(sod_conflicts) if hasattr(sod_conflicts, '__len__') else 0
     total_grants  = len(active_grants)
@@ -286,19 +253,16 @@ with tab_orgmap:
     m2.metric("SoD Conflicts", total_sod,
               delta="CRITICAL" if total_sod > 0 else None,
               delta_color="inverse")
-    m3.metric("Open Grants", total_grants,
-              help="Active JIT grants right now")
+    m3.metric("Open Grants", total_grants)
     m4.metric("Branches at Risk", f"{critical_branches} / {len(branch_stats)}",
               delta="requires review" if critical_branches > 0 else None,
               delta_color="inverse")
 
     st.divider()
 
-    # ── Plotly heatmap ───────────────────────────────────────────────────────
     DIMENSIONS = ["Avg Exposure", "Avg Beh Risk", "SoD Conflicts", "High-Priv %", "Open Grants"]
     branch_list = list(branch_stats.keys())
 
-    # Normalise each dimension to 0-1 for color scale
     def _norm(vals: list[float]) -> list[float]:
         mx = max(vals) if max(vals) > 0 else 1
         return [v / mx for v in vals]
@@ -332,7 +296,7 @@ with tab_orgmap:
         texttemplate="%{text}",
         textfont=dict(size=13, color="white"),
         colorscale=[
-            [0.0,  "#15803d"],
+            [0.0,  "#166534"],
             [0.45, "#f59e0b"],
             [0.75, "#dc2626"],
             [1.0,  "#7f1d1d"],
@@ -356,16 +320,9 @@ with tab_orgmap:
         plot_bgcolor="rgba(0,0,0,0)",
     )
 
-    st.plotly_chart(fig_hm, use_container_width=True)
-
-    st.caption(
-        "Values shown are actuals. Color intensity reflects normalized severity relative to the highest-risk branch. "
-        "All five dimensions are independent — a branch can score low on behavioral risk and still be critical."
-    )
+    st.plotly_chart(fig_hm, width="stretch")
 
     st.divider()
-
-    # ── Branch risk cards ────────────────────────────────────────────────────
     st.subheader("Branch Risk Cards")
 
     sorted_branches = sorted(
@@ -381,18 +338,12 @@ with tab_orgmap:
     for branch in sorted_branches:
         s = branch_stats[branch]
         is_critical = s["sod_conflicts"] > 0 or s["avg_exposure"] > 0.55
-        border_color = "#dc2626" if is_critical else ("#f59e0b" if s["avg_exposure"] > 0.35 else "#15803d")
         risk_label   = "🔴 HIGH RISK" if is_critical else ("🟡 ELEVATED" if s["avg_exposure"] > 0.35 else "🟢 NORMAL")
 
         with st.expander(
-            f"{risk_label}  ·  **{branch}** — {len(s['members'])} identities",
+            f"{risk_label}  ·  **{branch}** · {len(s['members'])} identities",
             expanded=is_critical,
         ):
-            st.markdown(
-                f'<div style="border-left:4px solid {border_color};padding-left:12px;margin-bottom:10px">',
-                unsafe_allow_html=True,
-            )
-
             mc1, mc2, mc3, mc4 = st.columns(4)
             mc1.metric("Avg Exposure",   f"{s['avg_exposure']:.2f}")
             mc2.metric("Avg Beh Risk",   f"{s['avg_beh_risk']:.2f}")
@@ -401,13 +352,12 @@ with tab_orgmap:
                        delta_color="inverse")
             mc4.metric("Open Grants",    s["open_grants"])
 
-            # User roster
             st.markdown("**Identities in this branch:**")
             for u in s["members"]:
                 role = roles_module.get_role(u.role_id)
                 tier = role.tier if role else u.role_id
                 exp_score = exp_map.get(u.user_id, 0.0)
-                beh_score = BEH_RISK_MAP.get(u.user_id, DEFAULT_BEH)
+                beh_score = _BEH_RISK_MAP.get(u.user_id, _DEFAULT_BEH)
                 has_sod = u.user_id in conflict_users
                 has_grant = u.user_id in grants_by_user
 
@@ -425,10 +375,5 @@ with tab_orgmap:
 
             if branch == "SOL003":
                 st.error(
-                    "**SOL003 is the PNB archetype branch.** "
-                    "`user_007` holds both `ISSUE_LOU` + `APPROVE_LOU` — SoD-001 CRITICAL. "
-                    "Behavioral risk appears normal (0.09). A UEBA system would give this branch a clean bill of health. "
-                    "AstraPAM doesn't."
+                    "SOL003 is the PNB branch. user_007 can both issue and approve LoUs with no one else needed. His behaviour score is normal (0.09), so a standard monitoring tool would clear him. AstraPAM flags the access combination regardless."
                 )
-
-            st.markdown("</div>", unsafe_allow_html=True)

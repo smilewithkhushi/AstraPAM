@@ -154,7 +154,7 @@ def _scan_file(path: Path, root: Path) -> list[CBOMEntry]:
 
 def scan(root: str | None = None) -> CBOMReport:
     """Scan all project .py files for cryptographic algorithm usage."""
-    base = Path(root) if root else Path(__file__).parent
+    base = Path(root) if root else Path(__file__).parent.parent
     all_entries: list[CBOMEntry] = []
     file_count = 0
 

@@ -8,13 +8,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-import broker
-import cbom as cbom_scanner
-import crypto
-import nhi as nhi_module
-import reconcile
-import roles as roles_module
-from schemas import ActionType, ConsoleActionType, init_db
+from core import broker
+from core import cbom as cbom_scanner
+from core import crypto
+from core import nhi as nhi_module
+from core import reconcile
+from core import roles as roles_module
+from core.schemas import ActionType, ConsoleActionType, init_db
 
 _now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 

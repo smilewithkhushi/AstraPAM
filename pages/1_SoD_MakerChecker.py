@@ -5,28 +5,23 @@ import requests
 import streamlit as st
 
 import _sidebar
-import roles as roles_module
+from core import roles as roles_module
 
 st.set_page_config(page_title="SoD & Maker-Checker", page_icon="⚖️", layout="wide")
 
 API = _sidebar.API_URL
 
 _sidebar.render_page_header(
-    "⚖️", "Segregation of Duties & Maker-Checker",
-    "Detects toxic entitlement combinations — such as a single employee holding both ISSUE_LOU and APPROVE_LOU — before any fraudulent transaction can occur. This is the exact control that was absent during the ₹14,000 Cr PNB fraud.",
-    "Maker-Checker enforces dual authorisation at the transaction level: every high-value action requires a separate approver, and self-approval is hard-blocked by the system with no override path.",
+    "⚖️", "Segregation of Duties",
+    "Catches situations where one person has too much power, like being able to both create and approve a transaction. Every high-value action needs a second person to sign off.",
 )
 
 tab_sod, tab_mc = st.tabs(["SoD Conflict Scan", "Maker-Checker Requests"])
 
 # ── SoD Conflict Scan ─────────────────────────────────────────────────────────
 with tab_sod:
-    st.subheader("SoD Conflict Rules")
-    st.caption(
-        "The four forbidden entitlement pairs built into AstraPAM's Finacle-grounded control matrix. "
-        "Any user whose effective entitlements include both columns A and B for a given rule is in violation. "
-        "`SOD-001` is the exact combination that made the PNB fraud structurally possible."
-    )
+    st.subheader("Conflict Rules")
+    st.caption("These are the four combinations we watch for. SOD-001 is the exact setup that made the PNB fraud possible.")
 
     sod_data = []
     for ent_a, ent_b, rule_id, severity in roles_module.SOD_MATRIX:
@@ -41,12 +36,7 @@ with tab_sod:
     _scan_left, _scan_right = st.columns(2)
 
     with _scan_left:
-        st.subheader("Live Conflict Scan — All Users")
-        st.caption(
-            "Scans every seeded user's effective entitlements (role entitlements + any extra privileges granted) "
-            "against the SoD rule matrix. A match means one person holds a toxic pair — flag raised immediately, "
-            "no fraudulent action required to trigger it."
-        )
+        st.subheader("Scan All Users")
 
         if st.button("Run Conflict Scan", type="primary"):
             try:
@@ -64,24 +54,20 @@ with tab_sod:
                     user = roles_module.get_user(c["user_id"])
                     name = user.name if user else c["user_id"]
                     st.markdown(
-                        f"{badge} **{c['rule_id']}** · **{c['severity'].upper()}** — "
+                        f"{badge} **{c['rule_id']}** · **{c['severity'].upper()}**: "
                         f"**{name}** (`{c['user_id']}`) holds both "
                         f"`{c['entitlement_a']}` + `{c['entitlement_b']}`"
                     )
                     if c["rule_id"] == "SOD-001":
                         st.warning(
-                            "This is the **PNB combination**: a single identity can both issue "
-                            "and approve Letters of Undertaking — the structural flaw that enabled "
-                            "₹11,400 Cr in unauthorised LoUs over 7 years. "
-                            "The system flags this before any fraudulent action."
+                            "This is the PNB combination. One person could both create and approve Letters of Undertaking, with no one else in the loop. That single gap led to ₹11,400 Cr in fraud over 7 years."
                         )
 
     with _scan_right:
-        st.subheader("Per-User Conflict Scan")
-        st.caption("Drill into a specific user to see which rules they violate and which entitlements are in conflict.")
+        st.subheader("Per-User Scan")
         user_ids = [u.user_id for u in roles_module.get_all_users()]
         selected = st.selectbox("Select user", user_ids,
-                                format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}")
+                                format_func=lambda uid: f"{uid}: {roles_module.get_user(uid).name}")
         if st.button("Scan user"):
             try:
                 resp = requests.get(f"{API}/sod/conflicts/{selected}", timeout=5)
@@ -105,23 +91,17 @@ with tab_mc:
     _mc_left, _mc_right = st.columns(2)
 
     with _mc_left:
-        st.subheader("Submit Financial Action (Maker)")
-        st.caption(
-            "The **maker** is the person initiating the financial action. "
-            "If the amount is within their authorisation limit, the system auto-approves it. "
-            "If it exceeds the limit, the request enters `PENDING` state and must be reviewed by a separate checker — "
-            "the maker cannot approve it themselves."
-        )
+        st.subheader("Initiate a Transaction")
 
         with st.form("maker_form"):
             maker_id = st.selectbox(
-                "Maker (initiating user)",
+                "Initiating user (maker)",
                 [u.user_id for u in roles_module.get_all_users()],
-                format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}",
+                format_func=lambda uid: f"{uid}: {roles_module.get_user(uid).name}",
             )
             amount = st.number_input("Amount (₹)", min_value=1.0, value=500000.0, step=10000.0)
-            cid_in = st.text_input("Correlation ID (optional — generated if blank)", value="")
-            submitted = st.form_submit_button("Submit", use_container_width=True)
+            cid_in = st.text_input("Correlation ID (auto-generated if blank)", value="")
+            submitted = st.form_submit_button("Submit", width="stretch")
 
         if submitted:
             try:
@@ -135,12 +115,12 @@ with tab_mc:
                     data = resp.json()
                     if data["status"] == "APPROVED":
                         st.success(
-                            f"Auto-approved (within maker's auth_limit). "
+                            f"Auto-approved. Within maker's authorisation limit. "
                             f"Correlation ID: `{data['correlation_id']}`"
                         )
                     else:
                         st.warning(
-                            f"Requires checker approval. Request ID: `{data['request_id']}` | "
+                            f"Pending checker approval. Request ID: `{data['request_id']}` · "
                             f"Correlation ID: `{data['correlation_id']}`"
                         )
                     st.json(data)
@@ -150,23 +130,18 @@ with tab_mc:
                 st.error(f"Cannot reach API: {e}")
 
     with _mc_right:
-        st.subheader("Checker Decision")
-        st.caption(
-            "The **checker** is the second person who reviews and approves or rejects a pending request. "
-            "They must be a different user from the maker — if the same user ID is submitted, "
-            "the system returns `SELF_APPROVAL_BLOCKED` and the transaction is halted. "
-            "No override exists; a genuinely different approver is required."
-        )
+        st.subheader("Approve or Reject")
+        st.caption("Must be a different person from whoever submitted. If you try to approve your own transaction, it gets blocked automatically.")
 
         with st.form("checker_form"):
             req_id_in = st.text_input("Request ID")
             checker_id = st.selectbox(
-                "Checker (approving user)",
+                "Approving user (checker)",
                 [u.user_id for u in roles_module.get_all_users()],
-                format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}",
+                format_func=lambda uid: f"{uid}: {roles_module.get_user(uid).name}",
             )
             approve = st.radio("Decision", ["Approve", "Reject"]) == "Approve"
-            decide = st.form_submit_button("Submit Decision", use_container_width=True)
+            decide = st.form_submit_button("Submit Decision", width="stretch")
 
         if decide:
             try:
@@ -179,7 +154,7 @@ with tab_mc:
                     data = resp.json()
                     status = data["status"]
                     if status == "SELF_APPROVAL_BLOCKED":
-                        st.error("🚫 **SELF_APPROVAL_BLOCKED** — the checker and maker cannot be the same person.")
+                        st.error("🚫 You cannot approve your own transaction.")
                     elif status == "APPROVED":
                         st.success(f"✅ Approved by {checker_id}.")
                     else:

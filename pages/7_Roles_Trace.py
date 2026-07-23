@@ -6,7 +6,7 @@ import requests
 import streamlit as st
 
 import _sidebar
-import roles as roles_module
+from core import roles as roles_module
 
 st.set_page_config(page_title="Roles & Trace", page_icon="🏦", layout="wide")
 
@@ -18,12 +18,12 @@ def _render_trace(trace: dict) -> None:
     st.markdown(f"**Correlation ID:** `{cid}`")
     st.divider()
 
-    grants = trace.get("grants", [])
+    grants  = trace.get("grants", [])
     actions = trace.get("privileged_actions", [])
-    alerts = trace.get("recon_alerts", [])
-    mc = trace.get("maker_checker", [])
+    alerts  = trace.get("recon_alerts", [])
+    mc      = trace.get("maker_checker", [])
     console = trace.get("console_actions", [])
-    audit = trace.get("audit_trail", [])
+    audit   = trace.get("audit_trail", [])
 
     total = len(grants) + len(actions) + len(alerts) + len(mc) + len(console) + len(audit)
     if total == 0:
@@ -85,25 +85,20 @@ def _render_trace(trace: dict) -> None:
                 event = rec["payload"][:60]
             st.markdown(f"- seq `{rec['seq']}` | `{event}` | hash `{rec['hash'][:16]}…`")
 
+
 _sidebar.render_page_header(
-    "🏦", "Roles & End-to-End Trace",
-    "Displays the full role hierarchy — T1 Teller through T5 IT Admin and NHI Service Accounts — modelled on the Finacle entitlement structure used in Indian public-sector banks.",
-    "Paste any correlation ID to reconstruct the complete timeline of a single event: the access request, risk score, grant or denial, CBS reconciliation outcome, and audit chain entry.",
+    "🏦", "Roles and Audit Trace",
+    "See what each user is allowed to do and why. Paste a transaction ID to pull up everything that happened around it, from access request to final audit entry.",
 )
 
 tab_roles, tab_users, tab_trace = st.tabs(["Role Definitions", "Bank Users", "Trace by Correlation ID"])
 
-# ── Role Definitions ──────────────────────────────────────────────────────────
 with tab_roles:
     st.subheader("Role / Tier Definitions")
-    st.caption("No single tier holds both ISSUE_LOU and APPROVE_LOU. T5 IT Admin holds zero financial entitlements.")
-
-    TIER_COLOR = {"T1": "#4a90d9", "T2": "#5ba05b", "T3": "#b36b00",
-                  "T4": "#a00000", "T5": "#6a0dad", "NHI": "#555"}
+    st.caption("No single role can both issue and approve Letters of Undertaking. IT admins have no financial permissions at all.")
 
     for role in roles_module.ROLES.values():
-        color = TIER_COLOR.get(role.tier, "#333")
-        with st.expander(f"**{role.tier}** — {role.name}  ({role.work_class})", expanded=False):
+        with st.expander(f"**{role.tier}**: {role.name}  ({role.work_class})", expanded=False):
             c1, c2 = st.columns(2)
             c1.markdown(f"**Tier:** `{role.tier}`")
             c1.markdown(f"**Work class:** `{role.work_class}`")
@@ -113,13 +108,9 @@ with tab_roles:
             badges = "  ".join(f"`{e}`" for e in sorted(role.entitlements))
             st.markdown(badges if badges else "_none_")
 
-# ── Bank Users ────────────────────────────────────────────────────────────────
 with tab_users:
     st.subheader("Seeded Bank Users")
-    st.caption(
-        "user_007 (Gokulnath Shetty) is the PNB archetype: T4 Manager role carries "
-        "ISSUE_LOU; privilege creep added APPROVE_LOU — the toxic pair that Phase 7 flags."
-    )
+    st.caption("user_007 is Gokulnath Shetty. His manager role gives him ISSUE_LOU, and someone added APPROVE_LOU on top. That combination is exactly what enabled the PNB fraud.")
 
     try:
         resp = requests.get(f"{API}/roles/users", timeout=5)
@@ -136,7 +127,7 @@ with tab_users:
         role = roles_module.get_role(u["role_id"])
         tier = role.tier if role else "?"
         is_pnb = "user_007" in u["user_id"]
-        label = f"{'⚠️ ' if is_pnb else ''}**{u['name']}** (`{u['user_id']}`) — {tier} · {u['branch_sol']}"
+        label = f"{'⚠️ ' if is_pnb else ''}**{u['name']}** (`{u['user_id']}`) · {tier} · {u['branch_sol']}"
         with st.expander(label, expanded=is_pnb):
             c1, c2 = st.columns(2)
             c1.markdown(f"**Role:** `{u['role_id']}`")
@@ -151,18 +142,12 @@ with tab_users:
 
             if is_pnb:
                 st.error(
-                    "⚠️ **PNB archetype**: holds both `ISSUE_LOU` (via T4 role) and "
-                    "`APPROVE_LOU` (via privilege creep). Phase 7 SoD detection flags this "
-                    "as a SOD-001 critical violation before any fraudulent action."
+                    "Has both ISSUE_LOU and APPROVE_LOU. The system flags this as a critical conflict before any fraudulent transaction even needs to happen."
                 )
 
-# ── Trace by Correlation ID ───────────────────────────────────────────────────
 with tab_trace:
-    st.subheader("End-to-End Trace")
-    st.caption(
-        "Enter a correlation ID to see the complete chain: grant → risk decision → "
-        "privileged action → ledger → recon alert → audit record — with named roles and branches."
-    )
+    st.subheader("Trace a Transaction")
+    st.caption("Enter a transaction ID to see the full story behind it: who requested access, what the system decided, what happened in the bank ledger, and what the audit log recorded.")
 
     cid = st.text_input("Correlation ID", placeholder="paste a correlation_id here…")
 

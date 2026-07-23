@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from schemas import BankUser, Role, SoDConflict, SoDSeverity
+from .schemas import BankUser, Role, SoDConflict, SoDSeverity
 
 _now = datetime.utcnow
 

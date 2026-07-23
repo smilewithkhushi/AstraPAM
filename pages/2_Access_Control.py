@@ -12,10 +12,10 @@ import pandas as pd
 import requests
 import streamlit as st
 
-import broker
-import crypto
-import roles as roles_module
-from schemas import DB_PATH, AccessRequest, init_db
+from core import broker
+from core import crypto
+from core import roles as roles_module
+from core.schemas import DB_PATH, AccessRequest, init_db
 
 st.set_page_config(
     page_title="AstraPAM · Access Control",
@@ -26,89 +26,22 @@ st.set_page_config(
 
 init_db()
 
-with st.sidebar:
-    st.divider()
-    if st.button("↺ Refresh", use_container_width=True):
-        st.rerun()
-
-# ── header ────────────────────────────────────────────────────────────────────
 _sidebar.render_page_header(
-    "🛡", "Access Control — Zero Standing Privilege",
-    "No identity holds permanent access to any privileged system. Every request is evaluated in real time — the risk engine scores the session, an adaptive decision is made, and a time-bound grant is issued or denied.",
-    "Grants auto-expire when their TTL elapses. Zero active grants is the correct and healthy state — it means no open doors exist anywhere in the system.",
+    "🛡", "Access Control",
+    "Nobody gets permanent access to anything. Every request is checked in real time and access expires automatically. If there are zero active grants, that's a good thing.",
 )
 
-# JIT Lifecycle strip
-st.markdown(
-    """
-<div style="
-    background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
-    border-radius: 10px;
-    padding: 18px 24px;
-    margin: 12px 0 20px 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: monospace;
-">
-<div style="display:flex;align-items:center;gap:0;width:100%;justify-content:center">
-
-<div style="text-align:center;padding:10px 16px;background:#1e3a5f;border-radius:8px;min-width:130px">
-    <div style="color:#60a5fa;font-size:1.1rem;font-weight:700">1. REQUEST</div>
-    <div style="color:#94a3b8;font-size:0.72rem;margin-top:4px">User + Target + Action<br/>Correlation ID minted</div>
-</div>
-
-<div style="color:#475569;font-size:1.5rem;padding:0 8px">──▶</div>
-
-<div style="text-align:center;padding:10px 16px;background:#3b1f1f;border-radius:8px;min-width:130px">
-    <div style="color:#f87171;font-size:1.1rem;font-weight:700">2. RISK SCORE</div>
-    <div style="color:#94a3b8;font-size:0.72rem;margin-top:4px">LSTM Autoencoder<br/>SHAP attribution</div>
-</div>
-
-<div style="color:#475569;font-size:1.5rem;padding:0 8px">──▶</div>
-
-<div style="text-align:center;padding:10px 16px;background:#1a3326;border-radius:8px;min-width:180px">
-    <div style="color:#4ade80;font-size:1.1rem;font-weight:700">3. ADAPTIVE DECISION</div>
-    <div style="color:#94a3b8;font-size:0.72rem;margin-top:4px">ALLOW · THROTTLE<br/>STEP UP · DENY</div>
-</div>
-
-<div style="color:#475569;font-size:1.5rem;padding:0 8px">──▶</div>
-
-<div style="text-align:center;padding:10px 16px;background:#1e3a5f;border-radius:8px;min-width:150px">
-    <div style="color:#60a5fa;font-size:1.1rem;font-weight:700">4. JIT GRANT</div>
-    <div style="color:#94a3b8;font-size:0.72rem;margin-top:4px">Scoped · TTL-bound<br/>PQC-sealed</div>
-</div>
-
-<div style="color:#475569;font-size:1.5rem;padding:0 8px">──▶</div>
-
-<div style="text-align:center;padding:10px 16px;background:#2d1b1b;border-radius:8px;min-width:130px">
-    <div style="color:#fb923c;font-size:1.1rem;font-weight:700">5. AUTO-EXPIRE</div>
-    <div style="color:#94a3b8;font-size:0.72rem;margin-top:4px">TTL elapses<br/>Access gone. Always.</div>
-</div>
-
-</div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
-
-# ── JIT Infographic ────────────────────────────────────────────────────────────
-with st.expander("📖 What is Zero Standing Privilege? (click to expand)", expanded=False):
+with st.expander("📖 JIT Access lifecycle", expanded=False):
     st.image(
         "preview/diagram_zero_standing_privilege_light.png",
-        use_container_width=True,
-        caption="Zero Standing Privilege — JIT Access lifecycle. No permanent access. Every grant is ephemeral, scoped, and auto-revoked.",
+        width="stretch",
+        caption="Zero Standing Privilege. No permanent access. Every grant is time-limited, scoped, and auto-revoked.",
     )
 
 st.divider()
 
-# ── JIT ACCESS REQUEST (the star of the page) ──────────────────────────────────
-st.subheader("Request JIT Access")
-st.caption(
-    "This is the live JIT engine. Select a user and target — the system scores their current session risk "
-    "in real time and makes an adaptive decision. The same user gets different outcomes depending on their "
-    "behavior profile. Try `user_007` (Gokulnath Shetty) — risk score forces DENY or STEP UP."
-)
+# ── JIT ACCESS REQUEST ────────────────────────────────────────────────────────
+st.subheader("Request Access")
 
 with st.container(border=True):
     col_form, col_result = st.columns([1, 1])
@@ -120,7 +53,7 @@ with st.container(border=True):
         req_user = st.selectbox(
             "Requesting user",
             user_ids,
-            format_func=lambda uid: f"{uid} — {roles_module.get_user(uid).name}",
+            format_func=lambda uid: f"{uid}: {roles_module.get_user(uid).name}",
             key="jit_user",
         )
         req_target = st.selectbox(
@@ -133,9 +66,9 @@ with st.container(border=True):
             "Action type",
             ["read", "financial", "admin"],
             format_func=lambda a: {
-                "read": "read — view data only",
-                "financial": "financial — initiate transactions",
-                "admin": "admin — system-level changes",
+                "read": "read: view data only",
+                "financial": "financial: initiate transactions",
+                "admin": "admin: system-level changes",
             }[a],
             key="jit_action",
         )
@@ -154,7 +87,7 @@ with st.container(border=True):
         elif profile == "Suspicious session":
             features = _sidebar.MAL_FEATURES.copy()
         else:
-            with st.expander("Tune features"):
+            with st.expander("Configure session features"):
                 features = {
                     "logon_count":    st.slider("Logon count", 0, 20, 5),
                     "after_hours":    st.slider("After-hours ratio", 0.0, 1.0, 0.0),
@@ -166,12 +99,12 @@ with st.container(border=True):
                 }
 
         cid_jit = st.text_input(
-            "Correlation ID (leave blank to auto-generate)",
+            "Correlation ID (auto-generated if blank)",
             value="",
             key="jit_cid",
         )
 
-        request_btn = st.button("Request Access", type="primary", use_container_width=True)
+        request_btn = st.button("Request Access", type="primary", width="stretch")
 
     with col_result:
         st.markdown("**Decision output**")
@@ -223,20 +156,19 @@ with st.container(border=True):
             score    = risk.get("score", data.get("score", 0))
             decision = risk.get("decision", "deny" if "denied" in status else "allow")
 
-            DECISION_COLOR = {
-                "allow": "#15803d", "throttle": "#b45309",
-                "step_up": "#b45309", "deny": "#b91c1c",
-            }
+            DECISION_COLOR = _sidebar.DECISION_COLOR
             DECISION_LABEL = {
-                "allow": "✅ ALLOW", "throttle": "⚡ THROTTLE",
-                "step_up": "🔐 STEP UP REQUIRED", "deny": "🚫 DENY",
+                "allow":    "✅ ALLOW",
+                "throttle": "⚡ THROTTLE",
+                "step_up":  "🔐 STEP UP REQUIRED",
+                "deny":     "🚫 DENY",
             }
-            color = DECISION_COLOR.get(decision, "#4a90d9")
+            color = DECISION_COLOR.get(decision, _sidebar.C_INFO)
             label = DECISION_LABEL.get(decision, decision.upper())
 
             st.markdown(
-                f'<div style="background:{color};color:#fff;padding:12px 20px;border-radius:8px;'
-                f'font-size:1.3rem;font-weight:700;text-align:center;margin-bottom:12px">'
+                f'<div style="background:{color};color:#fff;padding:12px 20px;border-radius:6px;'
+                f'font-size:1.2rem;font-weight:700;text-align:center;margin-bottom:12px">'
                 f'{label}</div>',
                 unsafe_allow_html=True,
             )
@@ -259,15 +191,14 @@ with st.container(border=True):
             elif decision == "throttle":
                 grant = data.get("grant", {})
                 st.warning(
-                    f"Grant issued with **rate cap ₹1,000** — elevated risk detected.  \n"
+                    f"Grant issued with a rate cap of ₹1,000. Elevated risk detected.  \n"
                     f"Grant: `{grant.get('grant_id','')[:12]}…`"
                 )
 
             elif decision == "step_up":
                 st.warning(
                     "**Additional authentication required.**  \n"
-                    "In production: MFA push or out-of-band approval. "
-                    "Grant is NOT issued until step-up is completed."
+                    "Grant is not issued until step-up is completed."
                 )
 
             elif decision == "deny" or status == "denied":
@@ -284,7 +215,7 @@ with st.container(border=True):
                     for f in factors:
                         feat    = f.get("feature", "")
                         contrib = f.get("contribution", 0)
-                        bar_color = "#ef4444" if contrib > 0 else "#22c55e"
+                        bar_color = _sidebar.C_DENY if contrib > 0 else _sidebar.C_ALLOW
                         bar_width = min(abs(contrib) * 300, 100)
                         sign = "+" if contrib > 0 else ""
                         st.markdown(
@@ -297,24 +228,19 @@ with st.container(border=True):
                         )
         else:
             st.markdown(
-                '<div style="border:2px dashed #334155;border-radius:8px;padding:40px;text-align:center;color:#64748b">'
+                '<div style="border:1px dashed #d1d5db;border-radius:6px;padding:40px;text-align:center;color:#9ca3af">'
                 '<div style="font-size:2rem">🛡</div>'
-                '<div style="margin-top:8px">Submit a request to see the live risk-adaptive decision</div>'
+                '<div style="margin-top:8px">Submit a request to see the live risk decision</div>'
                 '</div>',
                 unsafe_allow_html=True,
             )
 
 st.divider()
 
-# ── active JIT grants + audit chain + PQC vault (left) | demo utilities (right) ──
-col_grants, col_pqc = st.columns([3, 2])
+col_grants, col_tools = st.columns([3, 2])
 
 with col_grants:
     st.subheader("Active JIT Grants")
-    st.caption(
-        "Every grant here is scoped to a single target, time-limited, and will be auto-revoked when its TTL elapses. "
-        "**Zero active grants = healthy state.** No standing access exists anywhere in the system."
-    )
 
     try:
         broker.expire_stale()
@@ -325,20 +251,14 @@ with col_grants:
     now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
 
     if not grants:
-        st.markdown(
-            '<div style="background:#052e16;border:1px solid #166534;border-radius:8px;padding:20px;text-align:center">'
-            '<div style="color:#4ade80;font-size:1.1rem;font-weight:700">✅ Zero Standing Privilege — Enforced</div>'
-            '<div style="color:#86efac;font-size:0.85rem;margin-top:6px">No active grants. No open doors. This is the correct state.</div>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
+        st.success("No open access at the moment. This is exactly how it should be.")
     else:
         for g in grants:
             remaining = (g.expires_at - now_utc).total_seconds()
             mins = int(remaining // 60)
             secs = int(remaining % 60)
             ttl_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
-            urgency = "#ef4444" if remaining < 60 else "#f59e0b" if remaining < 120 else "#4ade80"
+            urgency = _sidebar.C_DENY if remaining < 60 else (_sidebar.C_THROTTLE if remaining < 120 else _sidebar.C_ALLOW)
             badge = "🚨 BREAK-GLASS" if g.break_glass else "🔑 JIT"
             cap_str = f"₹{g.rate_cap:,.0f} cap" if g.rate_cap else "no cap"
 
@@ -359,19 +279,14 @@ with col_grants:
                         st.rerun()
 
     st.divider()
-    st.subheader("Audit Chain Integrity")
-    st.caption(
-        "Every privileged event is hashed and signed with ML-DSA-65 (FIPS 204 Dilithium). "
-        "A tampered record breaks the chain at that exact sequence number — "
-        "there is no way to alter history silently."
-    )
+    st.subheader("Audit Log")
 
     cs = st.session_state.get("chain_status") or crypto.verify_chain()
 
     if cs["valid"]:
-        st.success(f"Chain intact — {cs['length']} records verified, no tampering detected.")
+        st.success(f"Audit log is intact. {cs['length']} records checked, nothing altered.")
     else:
-        st.error(f"Chain broken at seq={cs['first_bad_seq']} — tamper or deletion detected.")
+        st.error(f"Log tampered at seq={cs['first_bad_seq']}. Something was altered.")
 
     log = crypto.get_audit_log()
     if log:
@@ -384,87 +299,82 @@ with col_grants:
                 st.caption(f"[{rec.seq}] `{ev}`  ·  hash `{rec.hash[:14]}…`")
 
     st.divider()
-    st.subheader("PQC Credential Vault")
-    st.caption(
-        "Credentials are sealed with a real ML-KEM-768 + X25519/HKDF hybrid key exchange — "
-        "the byte counts below confirm the NIST FIPS 203 KEM ran. Nothing is mocked or simulated."
-    )
+    st.subheader("Encryption Keys")
 
     art = st.session_state.get("last_artifact")
 
     if art is None:
-        st.info("Run **Issue PQC Credential** in the demo panel to see the live handshake output.")
+        st.info("Click Issue Credential below to see the output.")
     else:
         st.markdown(f"**Algorithm:** `{art.algorithm}`")
         b1, b2, b3 = st.columns(3)
         b1.metric("Public Key",    f"{art.pubkey_bytes} B",     help="ML-KEM-768 encapsulation key")
         b2.metric("Ciphertext",    f"{art.ciphertext_bytes} B", help="KEM ciphertext")
         b3.metric("Shared Secret", f"{art.shared_secret_bytes} B", help="HKDF-derived session key")
-        st.success("NIST FIPS 203 byte-counts confirmed — KEM is not simulated.")
+        st.success("Encryption key generated using post-quantum algorithm. Not simulated.")
 
-# ── demo utilities (right) ────────────────────────────────────────────────────
-with col_pqc:
-    st.subheader("Demo Utilities")
+with col_tools:
+    st.subheader("Credential Tools")
 
     with st.container(border=True):
-        st.markdown("**🔑 Issue PQC Credential**")
-        st.caption("Runs a live ML-KEM-768 + X25519 hybrid handshake and writes to the audit chain.")
-        if st.button("Issue credential", use_container_width=True, type="primary"):
+        st.markdown("**Issue Credential**")
+        st.caption("Generates a post-quantum encrypted key and logs it.")
+        if st.button("Issue credential", width="stretch", type="primary"):
             art = crypto.issue_credential("demo_user", "grant-demo")
             st.session_state["last_artifact"] = art
             st.success(f"pk={art.pubkey_bytes}B · ct={art.ciphertext_bytes}B")
 
     with st.container(border=True):
-        st.markdown("**✅ Verify Audit Chain**")
-        st.caption("Checks every Dilithium signature in the hash chain and surfaces any break.")
-        if st.button("Verify chain", use_container_width=True):
+        st.markdown("**Verify Audit Log**")
+        st.caption("Confirms that no log entry has been altered or deleted.")
+        if st.button("Verify chain", width="stretch"):
             st.session_state["chain_status"] = crypto.verify_chain()
             cs = st.session_state["chain_status"]
             if cs["valid"]:
-                st.success(f"Intact — {cs['length']} records")
+                st.success(f"Intact, {cs['length']} records")
             else:
                 st.error(f"Broken at seq={cs['first_bad_seq']}")
 
     with st.container(border=True):
-        st.markdown("**🚨 Emergency Break-Glass**")
-        st.caption("Issues a grant despite a high-risk score. Justified, logged, and visible — cannot be hidden from the audit chain.")
-        if st.button("Break-glass", use_container_width=True):
+        st.markdown("**Emergency Access**")
+        st.caption("Grants access even during a high-risk situation. Still logged and auditable.")
+        if st.button("Break-glass", width="stretch"):
             try:
                 resp = httpx.post(
                     "http://localhost:8000/access/break-glass",
                     json={
                         "user_id":       "admin_emergency",
                         "target":        "core_banking_prod",
-                        "justification": "P1 outage — production DB locked, normal path denied",
+                        "justification": "P1 outage. Production DB locked, normal path denied.",
                         "features":      _sidebar.MAL_FEATURES,
                     },
                     timeout=5,
                 )
                 d = resp.json()
                 st.warning(
-                    f"Granted — risk={d['risk_at_issue']['score']:.3f} "
+                    f"Granted. Risk={d['risk_at_issue']['score']:.3f} "
                     f"({d['risk_at_issue']['decision'].upper()})"
                 )
             except Exception as e:
                 st.error(f"API unreachable: {e}")
 
     with st.container(border=True):
-        st.markdown("**🔨 Tamper + Detect**")
-        st.caption("Corrupts audit record seq 1 — then click Verify Chain above to catch it.")
+        st.markdown("**Tamper Test**")
+        st.caption("Corrupts a log entry, then verify the audit log catches it.")
         t_col, r_col = st.columns(2)
         with t_col:
-            if st.button("Tamper seq 1", use_container_width=True):
+            if st.button("Corrupt seq 1", width="stretch"):
                 con = sqlite3.connect(DB_PATH)
                 rows = con.execute("SELECT seq FROM audit_records LIMIT 1").fetchall()
                 if rows:
                     con.execute("UPDATE audit_records SET payload='[TAMPERED]' WHERE seq=1")
                     con.commit()
-                    st.warning("Tampered — click Verify Chain to detect")
+                    st.warning("Corrupted. Click Verify Audit Log to detect it.")
                 else:
                     st.info("Issue a credential first")
                 con.close()
         with r_col:
-            if st.button("↺ Reset chain", use_container_width=True):
+            if st.button("Reset chain", width="stretch"):
                 con = sqlite3.connect(DB_PATH)
                 con.execute("DELETE FROM audit_records")
                 con.commit()

@@ -17,7 +17,7 @@ import shap
 import torch
 import torch.nn as nn
 
-from schemas import AttackTag, Decision, RiskFactor, RiskResult
+from .schemas import AttackTag, Decision, RiskFactor, RiskResult
 
 MODEL_DIR = Path("data/model")
 

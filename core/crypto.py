@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from pqcrypto.kem import ml_kem_768
 from pqcrypto.sign import ml_dsa_65
 
-from schemas import AuditRecord, CryptoArtifact, DB_PATH
+from .schemas import AuditRecord, CryptoArtifact, DB_PATH
 
 _now            = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 _GENESIS_HASH   = "0" * 64

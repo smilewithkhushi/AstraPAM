@@ -1,4 +1,4 @@
-"""Phase 10 — Logs & Reports: live activity log + (stub) scheduled reports."""
+"""Phase 10 — Logs & Reports: live activity log + scheduled reports."""
 from __future__ import annotations
 
 import json
@@ -13,14 +13,12 @@ st.set_page_config(page_title="Logs & Reports", page_icon="📋", layout="wide")
 API = _sidebar.API_URL
 
 _sidebar.render_page_header(
-    "📄", "Logs & Reports",
-    "A live feed of every access request, grant, reconciliation alert, and console action — filterable by user, decision type, and time window for rapid incident investigation.",
-    "Generate a banking-grade PDF audit report on demand, suitable for regulatory submission or post-incident review, covering the full control-plane activity for any selected period.",
+    "📄", "Logs and Reports",
+    "Everything that happened, in one place. Filter by source or download a full audit report for compliance or internal review.",
 )
 
 tab_logs, tab_reports = st.tabs(["📄 Activity Logs", "📊 Reports"])
 
-# ── helpers ───────────────────────────────────────────────────────────────────
 
 def _get(path: str) -> list | dict:
     try:
@@ -46,7 +44,7 @@ def _badge(label: str, color: str) -> str:
         f'border-radius:4px;font-size:0.78rem;font-weight:600">{label}</span>'
     )
 
-# ── TAB 1 — Activity Logs ─────────────────────────────────────────────────────
+
 with tab_logs:
     col_filter, col_refresh = st.columns([3, 1])
     with col_filter:
@@ -57,30 +55,28 @@ with tab_logs:
         )
     with col_refresh:
         st.markdown("&nbsp;")
-        if st.button("↺ Refresh", use_container_width=True):
+        if st.button("↺ Refresh", width="stretch"):
             st.rerun()
 
     st.markdown("&nbsp;", unsafe_allow_html=True)
 
-    # ── Fetch all sources ────────────────────────────────────────────────────
     audit_rows   = _get("/crypto/audit")       if "Audit Chain"     in source_filter else []
     grants       = _get("/access/grants")      if "Access Grants"   in source_filter else []
     recon_alerts = _get("/reconcile/alerts")   if "Recon Alerts"    in source_filter else []
     console_acts = _get("/console/actions")    if "Console Actions" in source_filter else []
     mc_list      = _get("/maker-checker/list") if "Maker-Checker"   in source_filter else []
 
-    # ── Build unified event list ─────────────────────────────────────────────
     events: list[dict] = []
 
     for g in grants:
         events.append({
-            "timestamp": g.get("expires_at", ""),   # use grant time as proxy
+            "timestamp": g.get("expires_at", ""),
             "source": "Access Grant",
             "actor": g.get("user_id", "—"),
             "target": g.get("target", "—"),
-            "action": f"Grant issued — expires {_fmt(g.get('expires_at'))}",
+            "action": f"Grant issued, expires {_fmt(g.get('expires_at'))}",
             "status": "REVOKED" if g.get("revoked") else "ACTIVE",
-            "status_color": "#a00000" if g.get("revoked") else "#1a7a1a",
+            "status_color": _sidebar.C_DENY if g.get("revoked") else _sidebar.C_ALLOW,
             "correlation_id": g.get("correlation_id", ""),
             "break_glass": g.get("break_glass", False),
         })
@@ -94,9 +90,9 @@ with tab_logs:
             "target": a.get("action_id", "—"),
             "action": a.get("reason", "—"),
             "status": sev.upper(),
-            "status_color": _sidebar.SEVERITY_LABEL.get(sev, "🔵").split()[0] and (
-                "#a00000" if sev == "critical" else
-                "#b36b00" if sev in ("high", "medium") else "#2266cc"
+            "status_color": (
+                _sidebar.C_DENY if sev == "critical" else
+                _sidebar.C_THROTTLE if sev in ("high", "medium") else _sidebar.C_INFO
             ),
             "correlation_id": a.get("correlation_id", ""),
             "recommended_action": a.get("recommended_action", ""),
@@ -111,7 +107,7 @@ with tab_logs:
             "target": c.get("target_user_id", "—"),
             "action": c.get("action", "—"),
             "status": status,
-            "status_color": "#1a7a1a" if status == "APPLIED" else "#b36b00" if status == "PENDING" else "#a00000",
+            "status_color": _sidebar.C_ALLOW if status == "APPLIED" else _sidebar.C_THROTTLE if status == "PENDING" else _sidebar.C_DENY,
             "correlation_id": c.get("correlation_id", ""),
             "reason": c.get("reason", ""),
             "approver": c.get("approver_id") or "—",
@@ -127,8 +123,8 @@ with tab_logs:
             "action": m.get("action_type", "—"),
             "status": status,
             "status_color": (
-                "#a00000" if "BLOCKED" in status or "REJECTED" in status else
-                "#1a7a1a" if status == "APPROVED" else "#b36b00"
+                _sidebar.C_DENY if "BLOCKED" in status or "REJECTED" in status else
+                _sidebar.C_ALLOW if status == "APPROVED" else _sidebar.C_THROTTLE
             ),
             "correlation_id": m.get("correlation_id", ""),
             "amount": m.get("amount"),
@@ -147,12 +143,11 @@ with tab_logs:
             "target": payload.get("target_user_id") or payload.get("checker_id") or payload.get("target") or "—",
             "action": payload.get("action") or payload.get("action_type") or payload.get("event") or "Audit entry",
             "status": f"seq #{row.get('seq', '?')}",
-            "status_color": "#4a90d9",
+            "status_color": _sidebar.C_INFO,
             "correlation_id": payload.get("correlation_id", ""),
             "hash": row.get("hash", "")[:16] + "…",
         })
 
-    # ── Sort newest-first ────────────────────────────────────────────────────
     events.sort(key=lambda e: e.get("timestamp") or "", reverse=True)
 
     if not events:
@@ -173,7 +168,7 @@ with tab_logs:
                 [2, 1.4, 1.4, 1.4, 3, 1.4]
             )
             col_ts.markdown(
-                f'<span style="font-size:0.8rem;color:#666">{_fmt(ev["timestamp"])}</span>',
+                f'<span style="font-size:0.8rem;color:{_sidebar.C_MUTED}">{_fmt(ev["timestamp"])}</span>',
                 unsafe_allow_html=True,
             )
             col_src.markdown(
@@ -197,7 +192,6 @@ with tab_logs:
                 unsafe_allow_html=True,
             )
 
-            # Extra detail row
             extras = []
             if ev.get("correlation_id"):
                 extras.append(f"`corr: {ev['correlation_id'][:12]}…`")
@@ -215,49 +209,41 @@ with tab_logs:
                 extras.append(f"approver: `{ev['approver']}`")
             if extras:
                 st.markdown(
-                    '<div style="padding-left:1rem;margin-bottom:0.2rem;color:#555;font-size:0.78rem">'
+                    f'<div style="padding-left:1rem;margin-bottom:0.2rem;color:{_sidebar.C_MUTED};font-size:0.78rem">'
                     + " &nbsp;·&nbsp; ".join(extras) + "</div>",
                     unsafe_allow_html=True,
                 )
 
             st.markdown(
-                '<hr style="margin:4px 0;border:none;border-top:1px solid #eee">',
+                '<hr style="margin:4px 0;border:none;border-top:1px solid #f3f4f6">',
                 unsafe_allow_html=True,
             )
 
-# ── TAB 2 — Reports ───────────────────────────────────────────────────────────
 with tab_reports:
-    import report_generator
+    from core import report_generator
 
     st.markdown("&nbsp;", unsafe_allow_html=True)
-    st.markdown(
-        "Generates a banking-grade internal audit report sourced from live AstraPAM system-of-record data. "
-        "Every quantitative figure is pulled directly from the control plane at generation time. "
-        "Reports are formatted for internal distribution and regulatory review."
-    )
+    st.markdown("Pulls live data from the system and generates a formatted report you can share with your compliance team or submit during an audit.")
 
     col1, col2 = st.columns(2)
 
     with col1:
         with st.container(border=True):
-            st.markdown("##### 📅 7-Day Operational Audit")
-            st.caption(
-                "Covers access grants, reconciliation alerts, risk scores, audit chain "
-                "integrity, NHI governance, and regulatory alignment for the past week."
-            )
+            st.markdown("##### 7-Day Operational Audit")
+            st.caption("Covers the past 7 days, access activity, alerts, and whether the audit log is intact.")
             st.markdown("&nbsp;", unsafe_allow_html=True)
-            if st.button("Generate 7-Day Report", use_container_width=True, type="primary", key="gen_7d"):
-                with st.spinner("Compiling audit data and generating report…"):
+            if st.button("Generate 7-Day Report", width="stretch", type="primary", key="gen_7d"):
+                with st.spinner("Compiling audit data…"):
                     try:
                         pdf_bytes = report_generator.generate_pdf(days=7)
                         fname = f"AstraPAM_Audit_7d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-                        st.success("Report ready — click below to download.")
+                        st.success("Report ready.")
                         st.download_button(
                             "⬇ Download PDF",
                             data=pdf_bytes,
                             file_name=fname,
                             mime="application/pdf",
-                            use_container_width=True,
+                            width="stretch",
                             key="dl_7d",
                         )
                     except Exception as e:
@@ -265,24 +251,21 @@ with tab_reports:
 
     with col2:
         with st.container(border=True):
-            st.markdown("##### 📆 30-Day Periodic Review")
-            st.caption(
-                "Extended review window covering a full calendar month — grant volume trends, "
-                "alert cadence by severity, NHI lifecycle, and SOC console action throughput."
-            )
+            st.markdown("##### 30-Day Periodic Review")
+            st.caption("Full month view, useful for periodic internal reviews or board-level reporting.")
             st.markdown("&nbsp;", unsafe_allow_html=True)
-            if st.button("Generate 30-Day Report", use_container_width=True, key="gen_30d"):
-                with st.spinner("Compiling audit data and generating report…"):
+            if st.button("Generate 30-Day Report", width="stretch", key="gen_30d"):
+                with st.spinner("Compiling audit data…"):
                     try:
                         pdf_bytes = report_generator.generate_pdf(days=30)
                         fname = f"AstraPAM_Audit_30d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-                        st.success("Report ready — click below to download.")
+                        st.success("Report ready.")
                         st.download_button(
                             "⬇ Download PDF",
                             data=pdf_bytes,
                             file_name=fname,
                             mime="application/pdf",
-                            use_container_width=True,
+                            width="stretch",
                             key="dl_30d",
                         )
                     except Exception as e:
@@ -292,14 +275,14 @@ with tab_reports:
     with st.expander("Report structure"):
         st.markdown(
             "Every generated report contains:\n\n"
-            "1. **Cover page** — Report ID, period, classification, applicable standards\n"
-            "2. **Executive Summary** — NIM-authored narrative, grounded in live metrics\n"
-            "3. **Access Control Summary** — grant volume, break-glass count, PQC mechanism\n"
-            "4. **Behavioral Risk Engine** — session scores, decision distribution, attack tags\n"
-            "5. **Reconciliation Findings** — alerts by severity, fraud pattern targeted\n"
-            "6. **NHI Governance** — inventory by status, CBOM alignment\n"
-            "7. **Audit Chain Integrity** — record count, signing algorithm, tamper detection\n"
-            "8. **Key Findings** — NIM-authored bullet observations\n"
-            "9. **Regulatory Alignment Matrix** — RBI CSF, IT Governance 2024, Apr-2026 Auth Directions\n\n"
-            "All quantitative sections are sourced directly from the control plane and are always accurate."
+            "1. **Cover page**: Report ID, period, classification, applicable standards\n"
+            "2. **Executive Summary**: narrative grounded in live metrics\n"
+            "3. **Access Control Summary**: grant volume, break-glass count, encryption mechanism\n"
+            "4. **Behavioral Risk Engine**: session scores, decision distribution, attack tags\n"
+            "5. **Reconciliation Findings**: alerts by severity, fraud pattern targeted\n"
+            "6. **NHI Governance**: inventory by status, encryption alignment\n"
+            "7. **Audit Chain Integrity**: record count, signing algorithm, tamper detection\n"
+            "8. **Key Findings**: bullet observations\n"
+            "9. **Regulatory Alignment**: RBI CSF, IT Governance 2024, Apr-2026 Auth Directions\n\n"
+            "All quantitative sections are sourced directly from the control plane."
         )

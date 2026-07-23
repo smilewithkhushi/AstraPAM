@@ -12,7 +12,7 @@ _now = lambda: datetime.now(_UTC).replace(tzinfo=None)
 
 import httpx
 
-from schemas import DB_PATH, SEVERITY_PLAYBOOK, LedgerEntry, PrivilegedAction, ReconAlert
+from .schemas import DB_PATH, SEVERITY_PLAYBOOK, LedgerEntry, PrivilegedAction, ReconAlert
 
 CBS_URL = os.getenv("CBS_URL", "http://localhost:8001")
 

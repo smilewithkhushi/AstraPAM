@@ -5,9 +5,9 @@ import _sidebar
 import pandas as pd
 import streamlit as st
 
-import cbom as cbom_scanner
-import nhi as nhi_module
-from schemas import init_db
+from core import cbom as cbom_scanner
+from core import nhi as nhi_module
+from core.schemas import init_db
 
 st.set_page_config(
     page_title="AstraPAM · Compliance",
@@ -18,31 +18,20 @@ st.set_page_config(
 
 init_db()
 
-with st.sidebar:
-    st.divider()
-    if st.button("↺ Refresh", use_container_width=True):
-        st.rerun()
-
-# ── header ────────────────────────────────────────────────────────────────────
 _sidebar.render_page_header(
-    "📋", "Compliance — NHI Governance & Cryptographic Inventory",
-    "Governs Non-Human Identities (service accounts, API keys, AI-agent credentials) with mandatory expiry dates and owner attribution — eliminating the orphaned credential risk that regulators increasingly flag during audits.",
-    "The Cryptographic Bill of Materials provides a live inventory of every algorithm in use across the system, aligned to the RBI Q-SAFE Committee's CBOM workstream for post-quantum readiness.",
+    "📋", "Compliance",
+    "Tracks all service accounts, API keys and automated agents, and makes sure they have an owner and an expiry date. Also shows which encryption methods the system is using.",
 )
 
-# ── demo action panel ─────────────────────────────────────────────────────────
+# ── NHI actions ───────────────────────────────────────────────────────────────
 with st.container(border=True):
-    st.markdown("##### Demo Actions")
-    st.caption("Seed identities first, then scan to surface lifecycle violations.")
-    s1, arrow, s2 = st.columns([2, 0.3, 2])
+    st.markdown("##### Service Account Actions")
+    seed_col, scan_col = st.columns(2)
 
-    with s1:
-        st.markdown("**Step 1 — Seed Demo NHIs**")
-        st.caption(
-            "Registers 3 non-human identities: a healthy service account, "
-            "an orphaned API key (expired 30 days ago), and an AI-agent credential."
-        )
-        if st.button("Seed demo NHIs", use_container_width=True, type="primary"):
+    with seed_col:
+        st.markdown("**Load Sample NHIs**")
+        st.caption("Adds three example accounts including one that is already expired, so you can see how the scan works.")
+        if st.button("Load sample NHIs", width="stretch", type="primary"):
             try:
                 seeded = [
                     nhi_module.register(
@@ -51,27 +40,21 @@ with st.container(border=True):
                     ),
                     nhi_module.register(
                         "api_key_reporting", "api_key", "analytics-team",
-                        ttl_days=-30, description="Analytics API key — ORPHANED (expired 30d ago)",
+                        ttl_days=-30, description="Analytics API key, ORPHANED (expired 30d ago)",
                     ),
                     nhi_module.register(
                         "ai_agent_fraud_detector", "ai_agent", "ml-team",
                         ttl_days=7, description="Fraud-detection ML agent credential",
                     ),
                 ]
-                st.success(f"Registered {len(seeded)} NHIs — refresh to see inventory below")
+                st.success(f"Registered {len(seeded)} accounts. Refresh to see them below")
             except Exception as e:
                 st.error(str(e))
 
-    with arrow:
-        st.markdown("<div style='text-align:center;font-size:2rem;padding-top:2.5rem'>→</div>", unsafe_allow_html=True)
-
-    with s2:
-        st.markdown("**Step 2 — Scan for Expired NHIs**")
-        st.caption(
-            "Flags any identity past its TTL, writes the violation to the "
-            "Dilithium-signed audit chain, and surfaces it in the inventory table."
-        )
-        if st.button("Scan for expired NHIs", use_container_width=True):
+    with scan_col:
+        st.markdown("**Scan for Expired NHIs**")
+        st.caption("Finds any account that has passed its expiry date and logs the violation.")
+        if st.button("Scan for expired NHIs", width="stretch"):
             expired = nhi_module.scan_expired()
             if expired:
                 st.warning(f"{len(expired)} expired NHI(s) flagged and signed in audit chain")
@@ -80,17 +63,13 @@ with st.container(border=True):
 
 st.divider()
 
-# ── nhi inventory ─────────────────────────────────────────────────────────────
-st.subheader("Non-Human Identity Inventory")
-st.caption(
-    "Every non-human identity must have a named owner and a mandatory expiry date. "
-    "Expired identities are flagged automatically and written to the audit chain."
-)
+# ── NHI inventory ─────────────────────────────────────────────────────────────
+st.subheader("Service Account Inventory")
 
 _nhis = nhi_module.list_all()
 
 if not _nhis:
-    st.info("No NHIs registered. Click **Seed demo NHIs** above to populate.")
+    st.info("No NHIs registered. Click **Load sample NHIs** above to populate.")
 else:
     active  = sum(1 for n in _nhis if n.status == "active")
     soon    = sum(1 for n in _nhis if n.status == "expiring_soon")
@@ -128,13 +107,9 @@ else:
 
 st.divider()
 
-# ── cbom ──────────────────────────────────────────────────────────────────────
-st.subheader("Cryptographic Bill of Materials")
-st.caption(
-    "Live scan of all project .py files. Classifies every cryptographic primitive as "
-    "quantum-safe, hybrid PQC, classical symmetric, or quantum-vulnerable. "
-    "Mirrors the RBI Q-SAFE CBOM workstream requirement."
-)
+# ── CBOM ──────────────────────────────────────────────────────────────────────
+st.subheader("Encryption Inventory")
+st.caption("A scan of every encryption method in use. Flags any that would be vulnerable to quantum computers in the future.")
 
 _cbom = cbom_scanner.scan()
 

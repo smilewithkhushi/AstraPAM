@@ -18,7 +18,7 @@ from typing import Any
 import httpx
 from fpdf import FPDF
 
-from schemas import DB_PATH
+from .schemas import DB_PATH
 
 NIM_KEY   = os.getenv("NVIDIA_NIM_API_KEY", "")
 NIM_URL   = "https://integrate.api.nvidia.com/v1/chat/completions"

@@ -16,10 +16,10 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-import crypto
-import risk as risk_engine
-from roles import get_user
-from schemas import DB_PATH, AccessRequest, EphemeralGrant, RiskResult
+from . import crypto
+from . import risk as risk_engine
+from .roles import get_user
+from .schemas import DB_PATH, AccessRequest, EphemeralGrant, RiskResult
 
 CBS_URL           = os.getenv("CBS_URL", "http://localhost:8001")
 GRANT_TTL         = int(os.getenv("GRANT_TTL_SECONDS", "300"))

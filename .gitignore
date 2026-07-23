@@ -1,11 +1,9 @@
-# ── Secrets & environment ────────────────────────────────────────────────────
 .env
 *.key
 *.pem
 *.p12
 .streamlit/secrets.toml
 
-# ── Python runtime ────────────────────────────────────────────────────────────
 .venv/
 __pycache__/
 *.pyc
@@ -15,14 +13,11 @@ __pycache__/
 dist/
 build/
 
-# ── Tooling caches ────────────────────────────────────────────────────────────
 .ruff_cache/
 .mypy_cache/
 .pytest_cache/
 .ipynb_checkpoints/
 
-# ── Data & models (too large / not source) ───────────────────────────────────
-# CERT insider-threat dataset (download separately — see README)
 data/
 *.csv
 *.xlsx
@@ -35,20 +30,15 @@ data/
 *.npz
 *.onnx
 
-# ── Database ──────────────────────────────────────────────────────────────────
 *.db
 *.sqlite
 *.sqlite3
 database/
 
-
-# ── Logs ─────────────────────────────────────────────────────────────────────
 *.log
 logs/
 
-# ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
 .AppleDouble
 
-# ── Internal research docs (not for public repo) ─────────────────────────────
 info/

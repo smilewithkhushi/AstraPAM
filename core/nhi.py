@@ -20,8 +20,8 @@ import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 
-import crypto
-from schemas import DB_PATH, NHIIdentity
+from . import crypto
+from .schemas import DB_PATH, NHIIdentity
 
 _now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 _EXPIRING_SOON_DAYS = 30
