@@ -42,6 +42,15 @@ with tab_request:
             width="stretch",
         )
 
+    _fa, _fb = st.columns([5, 1])
+    if _fb.button("📋 Fill sample data", key="fill_jit_btn"):
+        st.session_state["jit_user"]    = "user_004"
+        st.session_state["jit_target"]  = "swift_gateway"
+        st.session_state["jit_action"]  = "financial"
+        st.session_state["jit_profile"] = "Suspicious session"
+        st.session_state["jit_cid"]     = "DEMO-CID-PNB-001"
+        st.rerun()
+
     with st.container(border=True):
         col_form, col_result = st.columns([1, 1])
 

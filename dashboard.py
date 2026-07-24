@@ -69,30 +69,26 @@ with _left:
         unsafe_allow_html=True,
     )
 
-    row1_c1, row1_c2 = st.columns(2)
-    with row1_c1:
+    h_c1, h_c2, h_c3, h_c4 = st.columns(4)
+    with h_c1:
         st.markdown(
             f'<div class="metric-card"><div class="label">Audit Chain</div>'
             f'<div class="value">{"Intact" if cs["valid"] else "BROKEN"}</div></div>',
             unsafe_allow_html=True,
         )
-    with row1_c2:
+    with h_c2:
         st.markdown(
             f'<div class="metric-card"><div class="label">Active JIT Grants</div>'
             f'<div class="value">{len(active_grants)}</div></div>',
             unsafe_allow_html=True,
         )
-
-    st.write("")
-
-    row2_c1, row2_c2 = st.columns(2)
-    with row2_c1:
+    with h_c3:
         st.markdown(
             f'<div class="metric-card"><div class="label">Reconciliation Alerts</div>'
             f'<div class="value">{len(all_alerts)}</div></div>',
             unsafe_allow_html=True,
         )
-    with row2_c2:
+    with h_c4:
         st.markdown(
             f'<div class="metric-card"><div class="label">Critical Alerts</div>'
             f'<div class="value">{critical_count}</div></div>',

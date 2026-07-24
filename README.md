@@ -15,6 +15,7 @@
 | App | What it does | Link |
 |---|---|---|
 | **AstraPAM Dashboard** (Streamlit) | The security control plane — monitor risk scores, access grants, audit logs, SoD violations, and reconciliation alerts in real time | https://astrapam.streamlit.app/ |
+| **AstraPAM API** (FastAPI) | Control-plane backend — `/access/*`, `/sod/*`, `/maker-checker/*`, `/reconcile/*`, `/trace/*` and more | https://astrapam.up.railway.app/ |
 | **CBS Simulation** — Core Banking System (Next.js) | A simulated bank teller portal where employees log in and perform transactions — AstraPAM intercepts every action and decides allow / throttle / deny | https://cbs-simulation.vercel.app/ |
 
 ---

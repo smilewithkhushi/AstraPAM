@@ -268,7 +268,13 @@ with tab_mc:
     _mc_left, _mc_right = st.columns(2, gap="large")
 
     with _mc_left:
-        st.subheader("Initiate a Transaction")
+        _ml_title, _ml_fill = st.columns([4, 1])
+        _ml_title.subheader("Initiate a Transaction")
+        if _ml_fill.button("📋 Fill data", key="fill_maker_btn"):
+            st.session_state["mc_maker_id"] = "user_004"
+            st.session_state["mc_amount"]   = 500000.0
+            st.session_state["mc_cid"]      = "DEMO-TXN-PNB-001"
+            st.rerun()
         st.caption("The person who submits a transaction cannot also approve it. Amounts above ₹1,00,000 require a separate checker to sign off before they go through.")
 
         with st.form("maker_form"):
@@ -276,9 +282,10 @@ with tab_mc:
                 "Initiating user (maker)",
                 [u.user_id for u in roles_module.get_all_users()],
                 format_func=lambda uid: f"{uid}: {roles_module.get_user(uid).name}",
+                key="mc_maker_id",
             )
-            amount = st.number_input("Amount (₹)", min_value=1.0, value=500000.0, step=10000.0)
-            cid_in = st.text_input("Correlation ID (auto-generated if blank)", value="")
+            amount = st.number_input("Amount (₹)", min_value=1.0, value=500000.0, step=10000.0, key="mc_amount")
+            cid_in = st.text_input("Correlation ID (auto-generated if blank)", value="", key="mc_cid")
             submitted = st.form_submit_button("Submit", width="stretch")
 
         if submitted:
@@ -306,17 +313,38 @@ with tab_mc:
             st.json(data)
 
     with _mc_right:
-        st.subheader("Approve or Reject")
+        _mr_title, _mr_fill = st.columns([4, 1])
+        _mr_title.subheader("Approve or Reject")
+        if _mr_fill.button("📋 Fill data", key="fill_checker_btn"):
+            _con_fill = sqlite3.connect(DB_PATH)
+            _latest = _con_fill.execute(
+                "SELECT request_id, maker_id FROM maker_checker_reqs"
+                " WHERE status='SUBMITTED' ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+            _con_fill.close()
+            if _latest:
+                st.session_state["mc_req_id"] = _latest[0]
+                _all_uids = [u.user_id for u in roles_module.get_all_users()]
+                st.session_state["mc_checker_id"] = next(
+                    (u for u in _all_uids if u != _latest[1]), "user_006"
+                )
+            else:
+                st.session_state["mc_req_id"] = ""
+                st.session_state["mc_checker_id"] = "user_006"
+            st.session_state["mc_decision"] = "Approve"
+            st.rerun()
         st.caption("Must be a different person from whoever submitted. If you try to approve your own transaction, it gets blocked automatically.")
 
         with st.form("checker_form"):
-            req_id_in = st.text_input("Request ID")
+            req_id_in = st.text_input("Request ID", key="mc_req_id")
             checker_id = st.selectbox(
                 "Approving user (checker)",
                 [u.user_id for u in roles_module.get_all_users()],
                 format_func=lambda uid: f"{uid}: {roles_module.get_user(uid).name}",
+                key="mc_checker_id",
             )
-            approve = st.radio("Decision", ["Approve", "Reject"]) == "Approve"
+            _decision_val = st.radio("Decision", ["Approve", "Reject"], key="mc_decision")
+            approve = _decision_val == "Approve"
             decide = st.form_submit_button("Submit Decision", width="stretch")
 
         if decide:

@@ -37,7 +37,7 @@ _TAG_LABEL = {
 }
 
 _sidebar.render_page_header(
-    "🧠", "Risk Scoring",
+    "", "Risk Scoring",
     "Scores how risky a user session looks based on their behaviour. Trained on real insider threat data. Shows exactly which factors drove the score.",
 )
 
