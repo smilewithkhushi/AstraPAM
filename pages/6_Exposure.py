@@ -13,8 +13,6 @@ import _sidebar
 from core import risk as risk_engine
 from core import roles as roles_module
 
-st.set_page_config(page_title="AstraPAM · Exposure Score", page_icon="🛡", layout="wide")
-
 API = _sidebar.API_URL
 
 # Behavioral risk values for the 2×2 quadrant demo

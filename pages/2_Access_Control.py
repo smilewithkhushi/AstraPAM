@@ -16,13 +16,6 @@ from core import crypto
 from core import roles as roles_module
 from core.schemas import DB_PATH, init_db
 
-st.set_page_config(
-    page_title="AstraPAM · Access Control",
-    page_icon="🛡",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
 init_db()
 
 _sidebar.render_page_header(
@@ -135,7 +128,9 @@ with tab_request:
                         json={**payload, "features": features},
                         timeout=5,
                     )
-                    data = resp.json() if resp.ok else None
+                    if not resp.ok:
+                        raise Exception(f"API {resp.status_code}: {resp.text[:120]}")
+                    data = resp.json()
                 except Exception:
                     try:
                         from core.schemas import AccessRequest as AR
@@ -462,9 +457,22 @@ with tab_audit:
     st.subheader("Tools")
     st.markdown("""
     <style>
-    div[data-testid="stHorizontalBlock"] div[data-testid="stVerticalBlockBorderWrapper"],
+    div[data-testid="stHorizontalBlock"] {
+        align-items: stretch !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stVerticalBlock"] {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    div[data-testid="stHorizontalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] {
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
     div[data-testid="stHorizontalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] > div {
-        height: 100%;
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
     }
     </style>
     """, unsafe_allow_html=True)

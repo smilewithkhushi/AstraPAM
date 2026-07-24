@@ -10,13 +10,6 @@ import streamlit as st
 from core import risk as risk_engine
 from core.schemas import init_db
 
-st.set_page_config(
-    page_title="AstraPAM · Risk Engine",
-    page_icon="🛡",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
 init_db()
 
 _FEAT_CFG: dict[str, dict] = {
@@ -137,15 +130,32 @@ with tab_scorer:
 
     custom_features: dict[str, float] = {}
 
+    # Sample scenario: suspicious finance analyst session with multiple attack flags
+    _SAMPLE_FEATURES: dict[str, float] = {
+        "logon_count":   2,
+        "after_hours":   0.72,
+        "unique_pcs":    3,
+        "device_events": 5,
+        "file_events":   110,
+        "http_events":   8,
+        "email_events":  1,
+    }
+
     if mode == "Custom":
         st.markdown("<br>", unsafe_allow_html=True)
         with st.expander("Configure custom session", expanded=True):
-            up_col, _ = st.columns([2, 1])
+            up_col, sample_col = st.columns([2, 1])
             with up_col:
                 uploaded = st.file_uploader(
                     "Upload log file to pre-fill (CSV or JSON)",
                     type=["csv", "json"],
                 )
+            with sample_col:
+                st.markdown("&nbsp;", unsafe_allow_html=True)
+                if st.button("Load sample data", width="stretch", key="load_sample", help="Fills in a suspicious finance analyst scenario — off-hours access, bulk file export, and USB activity — so you can see how the risk engine flags real-world behaviour."):
+                    st.session_state["custom_from_sample"] = True
+                st.caption("Loads a pre-built example with multiple risk flags triggered.")
+
             prefill: dict[str, float] = {}
             if uploaded:
                 try:
@@ -158,9 +168,13 @@ with tab_scorer:
                         df_up = pd.read_csv(uploaded)
                         row = df_up.iloc[0].to_dict()
                         prefill = {k: float(row[k]) for k in _FEAT_CFG if k in row}
+                    st.session_state.pop("custom_from_sample", None)
                     st.success(f"✅ Loaded {len(prefill)} features from **{uploaded.name}**")
                 except Exception as e:
                     st.error(f"Parse error: {e}")
+            elif st.session_state.get("custom_from_sample"):
+                prefill = _SAMPLE_FEATURES
+                st.info("Sample data loaded — a suspicious finance analyst session with off-hours access, bulk file export, and USB events. Click **▶ Score Session** to score it.")
 
             defaults = prefill or _sidebar.NORMAL_FEATURES
             st.markdown("**Session feature values**")

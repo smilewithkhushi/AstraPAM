@@ -12,8 +12,6 @@ import streamlit as st
 import _sidebar
 from core import roles as roles_module
 
-st.set_page_config(page_title="AstraPAM · SOC (Security Operations Center) Console", page_icon="🛡", layout="wide")
-
 API = _sidebar.API_URL
 
 _sidebar.render_page_header(
@@ -117,7 +115,11 @@ with tab_act:
     st.divider()
     _va_title, _va_btn = st.columns([4, 1])
     _va_title.subheader("Verify Audit Log")
-    if st.button("Verify chain"):
+    _va_title.caption("Replays every audit record and verifies the cryptographic hash chain is unbroken.")
+    with _va_btn:
+        st.markdown("&nbsp;", unsafe_allow_html=True)
+        verify_clicked = st.button("Verify chain", width="stretch", key="verify_chain")
+    if verify_clicked:
         try:
             resp = requests.get(f"{API}/crypto/verify", timeout=5)
             result = resp.json()

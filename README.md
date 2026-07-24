@@ -4,94 +4,80 @@
 
 # AstraPAM
 
-**Zero-Standing-Privilege control plane for Indian banks.**
+Zero-Standing-Privilege control plane for Indian core banking. Built to catch the class of insider fraud that behavioral analytics is structurally blind to.
 
-> Catches the insider fraud that behavioral analytics is structurally blind to — the exact gap that enabled the ₹14,000 Cr PNB fraud.
+## 🔗 Live Demo
 
----
+<p align="center">
+  <img src="preview/1-dashboard.png" alt="AstraPAM Dashboard" width="800"/>
+</p>
 
-## Live Demo
-
-| App | What it does | Link |
-|---|---|---|
-| **AstraPAM Dashboard** (Streamlit) | The security control plane — monitor risk scores, access grants, audit logs, SoD violations, and reconciliation alerts in real time | https://astrapam.streamlit.app/ |
-| **AstraPAM API** (FastAPI) | Control-plane backend — `/access/*`, `/sod/*`, `/maker-checker/*`, `/reconcile/*`, `/trace/*` and more | https://astrapam.up.railway.app/ |
-| **CBS Simulation** — Core Banking System (Next.js) | A simulated bank teller portal where employees log in and perform transactions — AstraPAM intercepts every action and decides allow / throttle / deny | https://cbs-simulation.vercel.app/ |
-
----
-
-## The Problem
-
-In 2018, two PNB employees issued fraudulent LoUs worth ₹14,000 Cr over seven years. No anomaly detector fired — because the transactions *looked normal*. The fraud signature was an **absence**: a SWIFT action with no matching core ledger entry, by a user who held both `ISSUE_LOU` and `APPROVE_LOU` on a single identity.
-
-Every existing PAM, UEBA, and SWIFT control was looking at the transaction. None was looking for the transaction that wasn't there.
-
----
-
-## What AstraPAM Does
-
-| Control | What it catches |
+| App | Link |
 |---|---|
-| **SoD Detection** | Flags `ISSUE_LOU + APPROVE_LOU` on one identity *before* any fraud occurs (`SOD-001 CRITICAL`) |
-| **Ledger Reconciliation** | Diffs every privileged action against CBS — no entry within SLA → severity-tiered alert |
-| **JIT Access + ZSP** | No standing privilege. Every grant is ephemeral, scoped, TTL-bound, risk-gated |
-| **Behavioral Risk Engine** | LSTM Autoencoder (CMU CERT dataset) + SHAP attribution — every score is auditable |
-| **Blind-Spot Quadrant** | Behavioral Risk × Standing Exposure — surfaces users who look safe but carry structural danger |
-| **Post-Quantum Crypto** | ML-KEM-768 + ML-DSA-65 on a hash-chained audit log (NIST FIPS 203/204) |
+| AstraPAM Dashboard (Streamlit) | https://astrapam.streamlit.app/ |
+| AstraPAM API (FastAPI) | https://astrapam.up.railway.app/ |
+| CBS Simulation (Next.js) | https://cbs-simulation.vercel.app/ |
 
----
+## 🚨 The Problem
 
-## Stack
+Insider threats in banking come from employees, contractors, vendors, and admins acting maliciously, negligently, or under compromise. They are the hardest to detect because they already have legitimate access and their actions look normal on the surface.
 
-`FastAPI` · `PyTorch` · `SHAP` · `Streamlit` · `SQLite` · `pqcrypto` · `NVIDIA NIM`
+Existing PAM and UEBA tools watch what people do. AstraPAM also watches what they are structurally capable of doing and what they should have done but never did.
 
----
+## ✅ What AstraPAM Catches
 
-## Quickstart
+AstraPAM is built to detect four distinct patterns of privileged access misuse, each tied to a documented Indian banking fraud.
 
-```bash
-git clone https://github.com/smilewithkhushi/AstraPAM
-cd AstraPAM
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # optional: set NVIDIA_NIM_API_KEY for PDF reports
-./script.sh            # starts CBS mock, API, and dashboard
-```
+- **Toxic entitlement conflicts:** One person holding two powers that should never coexist, like issuing and approving the same instrument. Caught structurally before any transaction happens.
 
-Open **http://localhost:8501**
+- **Standing privilege exposure:** Access that sits idle and unmonitored because the person is not actively misusing it yet. High-privilege, low-activity identities are flagged before they are ever triggered.
 
----
+- **Behavioral anomalies:** Off-hours logins, mass data exports, unusual system reach. Every session is scored in real time with SHAP attribution so every flag is explainable.
 
-## Demo Path — "The Gokulnath Shetty Trace"
+- **Missing financial records:** Privileged actions that were never entered into the core ledger. Every action is diffed against CBS and a missing entry raises an alert immediately.
 
-1. **Page 1 (SoD)** — `user_007` holds `ISSUE_LOU + APPROVE_LOU` → `SOD-001 CRITICAL` raised immediately
-2. **Page 2 (Access Control)** — JIT request for `lou_issuance_system` at 02:14 → DENY
-3. **Page 3 (Reconciliation)** — privileged action fires, no CBS entry → CRITICAL alert
-4. **Page 4 (Risk Engine)** — risk `0.87`, SHAP: off-hours `+0.31`, file events `+0.27`
-5. **Page 7 (Console)** — FREEZE in one click; BLOCK requires a second approver
-6. **Page 8 (Exposure)** — `user_007` top-left on the 2×2: high structural danger, normal behavior
-7. **Page 5 (Trace)** — paste `correlation_id` → full timeline across all six control-plane sources
-8. **Page 9 (Reports)** — generate a banking-grade PDF audit report in two seconds
+**Controls at a glance:**
 
----
+| Control | What it does |
+|---|---|
+| SoD Detection | Flags toxic entitlement pairs on one identity before any fraud occurs |
+| JIT Access + Zero Standing Privilege | No persistent access. Every grant is ephemeral, scoped, TTL-bound, and risk-gated |
+| Behavioral Risk Engine | LSTM autoencoder trained on CMU CERT dataset with SHAP attribution on every score |
+| Ledger Reconciliation | Diffs every privileged action against CBS. No ledger entry within SLA raises a severity-tiered alert |
+| Maker-Checker Dual Authorization | No single operator can approve their own actions. Enforced at API level, not just UI |
+| Exposure Scoring | Ranks every user by structural damage potential based on entitlements, not behavior |
+| Post-Quantum Cryptography | ML-KEM-768 + ML-DSA-65 on a hash-chained audit log (NIST FIPS 203/204) |
+| Non-Human Identity Governance | Every service account, API key, and AI agent requires a named owner and expiry date |
 
-## Architecture
+## 🏗 Architecture
 
 <p align="center">
   <img src="preview/architecture.png" alt="AstraPAM Architecture Diagram" width="800"/>
 </p>
 
----
+The platform is organized into four major sections: Identity & Access, Transactions & Controls, Threat Intelligence, and Governance & Audit. 
 
-## Regulatory Alignment
+
+## 🛠 Tech Stack
+
+| Layer | What we used |
+|---|---|
+| AstraPAM App | Streamlit (hosted on Streamlit Cloud) |
+| API | FastAPI (hosted on Railway) |
+| Risk Engine | PyTorch (LSTM autoencoder) + SHAP |
+| Post-Quantum Crypto | pqcrypto (ML-KEM-768 + ML-DSA-65) |
+| CBS Simulation | Next.js (hosted on Vercel) |
+| Database | SQLite (14 tables) |
+| Report Generation | NVIDIA NIM |
+
+
+## 📋 Regulatory Alignment
 
 | Control | Regulation |
 |---|---|
-| Least privilege, SoD, centralized auth | RBI Cyber Security Framework cl. 8.4 |
-| Real-time risk scoring + adaptive auth | **RBI Authentication Directions — mandatory from 1 Apr 2026** |
+| Least privilege, SoD, centralized auth | RBI Cyber Security Framework clause 8.4 |
+| Real-time risk scoring and adaptive auth | RBI Authentication Directions (mandatory from April 2026) |
 | Maker-checker dual authorization | Core Banking standard control |
-| Post-quantum readiness + CBOM | RBI Q-SAFE Committee / Quantum Whitepaper |
+| Post-quantum readiness and CBOM | RBI Q-SAFE Committee / Quantum Whitepaper |
 
----
-
-**Team Nachos** · MIT License
+Team Nachos · MIT License

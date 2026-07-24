@@ -128,8 +128,6 @@ def _mc_list() -> list[dict]:
     cols = ("request_id", "correlation_id", "maker_id", "checker_id", "amount", "status", "created_at")
     return [dict(zip(cols, r)) for r in rows]
 
-st.set_page_config(page_title="AstraPAM · SoD & Maker-Checker", page_icon="🛡", layout="wide")
-
 API = _sidebar.API_URL
 
 _sidebar.render_page_header(

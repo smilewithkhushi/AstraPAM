@@ -8,8 +8,6 @@ import streamlit as st
 import _sidebar
 from core import roles as roles_module
 
-st.set_page_config(page_title="AstraPAM · Roles & Trace", page_icon="🛡", layout="wide")
-
 API = _sidebar.API_URL
 
 
@@ -193,6 +191,14 @@ with tab_users:
 with tab_trace:
     st.subheader("Trace a Transaction")
     st.caption("Enter a transaction ID to see the full story behind it: which bank employee requested access, what the system decided, what happened in the core banking ledger, and what the audit log recorded.")
+
+    st.info(
+        "**Where to find a Correlation ID** — Every transaction carries one. "
+        "You can copy it from the **Correlation ID** column in the Access Request History table "
+        "(Access Control → Audit Log & Keys tab), or from the submission confirmation on the "
+        "**SoD & Maker-Checker** page after initiating a transaction.",
+        icon="ℹ️",
+    )
 
     cid = st.text_input("Correlation ID", placeholder="paste a correlation_id here…")
 

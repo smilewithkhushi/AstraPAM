@@ -14,13 +14,6 @@ import streamlit as st
 from core import reconcile
 from core.schemas import DB_PATH, init_db
 
-st.set_page_config(
-    page_title="AstraPAM · Reconciliation",
-    page_icon="🛡",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
 init_db()
 
 _sidebar.render_page_header(

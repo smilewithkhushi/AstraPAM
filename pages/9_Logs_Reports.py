@@ -2,18 +2,21 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+import sqlite3
+from datetime import datetime, timedelta, timezone
 
 import requests
 import streamlit as st
 
 import _sidebar
+from core.schemas import DB_PATH, init_db
 
-st.set_page_config(page_title="AstraPAM · Logs & Reports", page_icon="🛡", layout="wide")
+init_db()
+
 API = _sidebar.API_URL
 
 _sidebar.render_page_header(
-    "📄", "Logs and Reports",
+    "", "Logs and Reports",
     "Everything that happened, in one place. Filter by source or download a full audit report for compliance or internal review.",
 )
 
@@ -28,12 +31,16 @@ def _get(path: str) -> list | dict:
         return []
 
 
+_IST = timezone(timedelta(hours=5, minutes=30))
+
 def _fmt(ts: str | None) -> str:
     if not ts:
         return "—"
     try:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        return dt.strftime("%Y-%m-%d  %H:%M:%S UTC")
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_IST).strftime("%Y-%m-%d  %H:%M:%S IST")
     except Exception:
         return ts
 
@@ -50,8 +57,8 @@ with tab_logs:
     with col_filter:
         source_filter = st.multiselect(
             "Filter by source",
-            ["Audit Chain", "Access Grants", "Recon Alerts", "Console Actions", "Maker-Checker"],
-            default=["Audit Chain", "Access Grants", "Recon Alerts", "Console Actions", "Maker-Checker"],
+            ["Access Decisions", "Audit Chain", "Access Grants", "Recon Alerts", "Console Actions", "Maker-Checker"],
+            default=["Access Decisions", "Audit Chain", "Access Grants", "Recon Alerts", "Console Actions", "Maker-Checker"],
         )
     with col_refresh:
         st.markdown("&nbsp;")
@@ -65,6 +72,20 @@ with tab_logs:
     recon_alerts = _get("/reconcile/alerts")   if "Recon Alerts"    in source_filter else []
     console_acts = _get("/console/actions")    if "Console Actions" in source_filter else []
     mc_list      = _get("/maker-checker/list") if "Maker-Checker"   in source_filter else []
+
+    # access_request_log — full decision history, queried directly from SQLite
+    access_log_rows = []
+    if "Access Decisions" in source_filter:
+        try:
+            _con = sqlite3.connect(DB_PATH)
+            access_log_rows = _con.execute(
+                "SELECT requested_at, user_id, target, action_type, decision,"
+                "       risk_score, attack_tags, grant_id, break_glass, correlation_id"
+                " FROM access_request_log ORDER BY requested_at DESC LIMIT 300"
+            ).fetchall()
+            _con.close()
+        except Exception:
+            access_log_rows = []
 
     events: list[dict] = []
 
@@ -148,79 +169,113 @@ with tab_logs:
             "hash": row.get("hash", "")[:16] + "…",
         })
 
+    DECISION_EMOJI = {"allow": "✅ ALLOW", "throttle": "⚡ THROTTLE", "step_up": "🔐 STEP UP", "deny": "🚫 DENY"}
+    for r in access_log_rows:
+        requested_at, user_id, target, action_type, decision, risk_score, attack_tags_raw, grant_id, break_glass, correlation_id = r
+        try:
+            tags = ", ".join(json.loads(attack_tags_raw)) if attack_tags_raw and attack_tags_raw != "[]" else ""
+        except Exception:
+            tags = ""
+        events.append({
+            "timestamp":      requested_at,
+            "source":         "Access Decision",
+            "actor":          user_id or "—",
+            "target":         target or "—",
+            "action":         f"{action_type} → {DECISION_EMOJI.get(decision, decision.upper() if decision else '—')}",
+            "status":         f"{risk_score:.3f}" if risk_score is not None else "—",
+            "status_color":   _sidebar.C_DENY if decision == "deny" else _sidebar.C_ALLOW,
+            "correlation_id": correlation_id or "",
+            "break_glass":    bool(break_glass),
+            "reason":         tags,
+            "grant_id":       (grant_id[:14] + "…") if grant_id else "",
+        })
+
     events.sort(key=lambda e: e.get("timestamp") or "", reverse=True)
 
     if not events:
         st.info("No log entries found. Start some activity or check that the API is running.")
     else:
-        st.markdown("---")
+        import pandas as _pd
 
+        SOURCE_ICON = {
+            "Access Decision": "🔐 Access Decision",
+            "Access Grant":    "🔑 Access Grant",
+            "Recon Alert":     "⚠️ Recon Alert",
+            "Console Action":  "🛡️ Console Action",
+            "Maker-Checker":   "✅ Maker-Checker",
+            "Audit Chain":     "🔒 Audit Chain",
+        }
+
+        rows = []
         for ev in events:
-            source_icon = {
-                "Access Grant":   "🔑",
-                "Recon Alert":    "⚠️",
-                "Console Action": "🛡️",
-                "Maker-Checker":  "✅",
-                "Audit Chain":    "🔒",
-            }.get(ev["source"], "📌")
-
-            col_ts, col_src, col_actor, col_target, col_action, col_status = st.columns(
-                [2, 1.4, 1.4, 1.4, 3, 1.4]
-            )
-            col_ts.markdown(
-                f'<span style="font-size:0.8rem;color:{_sidebar.C_MUTED}">{_fmt(ev["timestamp"])}</span>',
-                unsafe_allow_html=True,
-            )
-            col_src.markdown(
-                f'<span style="font-size:0.82rem">{source_icon} **{ev["source"]}**</span>',
-                unsafe_allow_html=True,
-            )
-            col_actor.markdown(
-                f'<code style="font-size:0.78rem">{ev["actor"]}</code>',
-                unsafe_allow_html=True,
-            )
-            col_target.markdown(
-                f'<code style="font-size:0.78rem">{ev["target"]}</code>',
-                unsafe_allow_html=True,
-            )
-            col_action.markdown(
-                f'<span style="font-size:0.82rem">{ev["action"]}</span>',
-                unsafe_allow_html=True,
-            )
-            col_status.markdown(
-                _badge(ev["status"], ev["status_color"]),
-                unsafe_allow_html=True,
-            )
-
             extras = []
-            if ev.get("correlation_id"):
-                extras.append(f"`corr: {ev['correlation_id'][:12]}…`")
             if ev.get("break_glass"):
-                extras.append("🚨 **BREAK-GLASS**")
+                extras.append("🚨 BREAK-GLASS")
             if ev.get("reason"):
-                extras.append(f"reason: _{ev['reason']}_")
+                extras.append(ev["reason"])
             if ev.get("recommended_action"):
-                extras.append(f"recommended: _{ev['recommended_action']}_")
-            if ev.get("hash"):
-                extras.append(f"hash: `{ev['hash']}`")
+                extras.append(f"Rec: {ev['recommended_action']}")
             if ev.get("amount") is not None:
-                extras.append(f"amount: ₹{ev['amount']:,.2f}")
+                extras.append(f"₹{ev['amount']:,.2f}")
             if ev.get("approver") and ev["approver"] != "—":
-                extras.append(f"approver: `{ev['approver']}`")
-            if extras:
-                st.markdown(
-                    f'<div style="padding-left:1rem;margin-bottom:0.2rem;color:{_sidebar.C_MUTED};font-size:0.78rem">'
-                    + " &nbsp;·&nbsp; ".join(extras) + "</div>",
-                    unsafe_allow_html=True,
-                )
+                extras.append(f"Approver: {ev['approver']}")
+            if ev.get("grant_id"):
+                extras.append(f"Grant: {ev['grant_id']}")
+            if ev.get("hash"):
+                extras.append(f"hash: {ev['hash']}")
 
-            st.markdown(
-                '<hr style="margin:4px 0;border:none;border-top:1px solid #f3f4f6">',
-                unsafe_allow_html=True,
-            )
+            rows.append({
+                "Time":           _fmt(ev["timestamp"]),
+                "Source":         SOURCE_ICON.get(ev["source"], ev["source"]),
+                "Actor":          ev["actor"],
+                "Target":         ev["target"],
+                "Action":         ev["action"],
+                "Risk / Status":  ev["status"],
+                "Correlation ID": (ev["correlation_id"][:16] + "…") if ev.get("correlation_id") else "—",
+                "Details":        " · ".join(extras) if extras else "—",
+            })
+
+        st.caption(f"{len(rows)} event(s) across {len(source_filter)} source(s) — newest first.")
+        st.dataframe(
+            _pd.DataFrame(rows),
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "Time":           st.column_config.TextColumn("Time",           width="medium"),
+                "Source":         st.column_config.TextColumn("Source",         width="medium"),
+                "Actor":          st.column_config.TextColumn("Actor",          width="small"),
+                "Target":         st.column_config.TextColumn("Target",         width="small"),
+                "Action":         st.column_config.TextColumn("Action",         width="large"),
+                "Risk / Status":  st.column_config.TextColumn("Risk / Status",  width="small"),
+                "Correlation ID": st.column_config.TextColumn("Correlation ID", width="medium"),
+                "Details":        st.column_config.TextColumn("Details",        width="large"),
+            },
+        )
 
 with tab_reports:
     from core import report_generator
+    import pandas as _pd
+    import time as _time
+
+    def _save_report_history(report_type: str, period_days: int, fname: str, pdf_bytes: bytes) -> None:
+        try:
+            _con = sqlite3.connect(DB_PATH)
+            _con.execute(
+                "INSERT INTO report_history (generated_at, report_type, period_days, file_name, file_size_kb, status)"
+                " VALUES (?,?,?,?,?,?)",
+                (
+                    datetime.now(timezone.utc).isoformat(),
+                    report_type,
+                    period_days,
+                    fname,
+                    round(len(pdf_bytes) / 1024, 1),
+                    "SUCCESS",
+                ),
+            )
+            _con.commit()
+            _con.close()
+        except Exception:
+            pass
 
     st.markdown("&nbsp;", unsafe_allow_html=True)
     st.markdown("Pulls live data from the system and generates a formatted report you can share with your compliance team or submit during an audit.")
@@ -233,21 +288,31 @@ with tab_reports:
             st.caption("Covers the past 7 days, access activity, alerts, and whether the audit log is intact.")
             st.markdown("&nbsp;", unsafe_allow_html=True)
             if st.button("Generate 7-Day Report", width="stretch", type="primary", key="gen_7d"):
-                with st.spinner("Compiling audit data…"):
-                    try:
+                try:
+                    with st.status("Compiling 7-day audit report…", expanded=True) as _s:
+                        st.write("Fetching access decisions and JIT grant history…")
+                        _time.sleep(0.5)
+                        st.write("Loading reconciliation alerts and ledger diff results…")
+                        _time.sleep(0.5)
+                        st.write("Verifying audit chain integrity and block hashes…")
+                        _time.sleep(0.5)
+                        st.write("Pulling NHI governance data and cryptographic inventory…")
+                        _time.sleep(0.4)
+                        st.write("Generating PDF with regulatory alignment matrix (RBI CSF, IT Gov 2024)…")
                         pdf_bytes = report_generator.generate_pdf(days=7)
-                        fname = f"AstraPAM_Audit_7d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-                        st.success("Report ready.")
-                        st.download_button(
-                            "⬇ Download PDF",
-                            data=pdf_bytes,
-                            file_name=fname,
-                            mime="application/pdf",
-                            width="stretch",
-                            key="dl_7d",
-                        )
-                    except Exception as e:
-                        st.error(f"Generation failed: {e}")
+                        _s.update(label="Report ready.", state="complete", expanded=False)
+                    fname = f"AstraPAM_Audit_7d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                    _save_report_history("7-Day Operational Audit", 7, fname, pdf_bytes)
+                    st.download_button(
+                        "⬇ Download PDF",
+                        data=pdf_bytes,
+                        file_name=fname,
+                        mime="application/pdf",
+                        width="stretch",
+                        key="dl_7d",
+                    )
+                except Exception as e:
+                    st.error(f"Generation failed: {e}")
 
     with col2:
         with st.container(border=True):
@@ -255,21 +320,31 @@ with tab_reports:
             st.caption("Full month view, useful for periodic internal reviews or board-level reporting.")
             st.markdown("&nbsp;", unsafe_allow_html=True)
             if st.button("Generate 30-Day Report", width="stretch", key="gen_30d"):
-                with st.spinner("Compiling audit data…"):
-                    try:
+                try:
+                    with st.status("Compiling 30-day periodic review…", expanded=True) as _s:
+                        st.write("Fetching full month of access decisions and privileged actions…")
+                        _time.sleep(0.5)
+                        st.write("Aggregating reconciliation alerts and ledger discrepancies…")
+                        _time.sleep(0.5)
+                        st.write("Scanning audit chain — verifying all block hashes across the period…")
+                        _time.sleep(0.5)
+                        st.write("Compiling NHI lifecycle events and SoD conflict history…")
+                        _time.sleep(0.4)
+                        st.write("Building executive summary and regulatory alignment matrix…")
                         pdf_bytes = report_generator.generate_pdf(days=30)
-                        fname = f"AstraPAM_Audit_30d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-                        st.success("Report ready.")
-                        st.download_button(
-                            "⬇ Download PDF",
-                            data=pdf_bytes,
-                            file_name=fname,
-                            mime="application/pdf",
-                            width="stretch",
-                            key="dl_30d",
-                        )
-                    except Exception as e:
-                        st.error(f"Generation failed: {e}")
+                        _s.update(label="Report ready.", state="complete", expanded=False)
+                    fname = f"AstraPAM_Audit_30d_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                    _save_report_history("30-Day Periodic Review", 30, fname, pdf_bytes)
+                    st.download_button(
+                        "⬇ Download PDF",
+                        data=pdf_bytes,
+                        file_name=fname,
+                        mime="application/pdf",
+                        width="stretch",
+                        key="dl_30d",
+                    )
+                except Exception as e:
+                    st.error(f"Generation failed: {e}")
 
     st.markdown("&nbsp;", unsafe_allow_html=True)
     with st.expander("Report structure"):
@@ -285,4 +360,54 @@ with tab_reports:
             "8. **Key Findings**: bullet observations\n"
             "9. **Regulatory Alignment**: RBI CSF, IT Governance 2024, Apr-2026 Auth Directions\n\n"
             "All quantitative sections are sourced directly from the control plane."
+        )
+
+    st.divider()
+    st.subheader("Generation History")
+    st.caption("Every report generated from this instance — timestamp, type, file size, and download name.")
+
+    try:
+        _con = sqlite3.connect(DB_PATH)
+        _hist = _con.execute(
+            "SELECT generated_at, report_type, period_days, file_name, file_size_kb, status"
+            " FROM report_history ORDER BY generated_at DESC"
+        ).fetchall()
+        _con.close()
+    except Exception:
+        _hist = []
+
+    if not _hist:
+        st.info("No reports generated yet. Use the buttons above to generate your first report.")
+    else:
+        _hist_rows = []
+        for h in _hist:
+            generated_at, report_type, period_days, file_name, file_size_kb, status = h
+            try:
+                _dt = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+                if _dt.tzinfo is None:
+                    _dt = _dt.replace(tzinfo=timezone.utc)
+                _ts = _dt.astimezone(_IST).strftime("%Y-%m-%d  %H:%M:%S IST")
+            except Exception:
+                _ts = generated_at
+            _hist_rows.append({
+                "Generated At":  _ts,
+                "Report Type":   report_type,
+                "Period (Days)": period_days,
+                "File Name":     file_name,
+                "Size (KB)":     file_size_kb,
+                "Status":        "✅ Success" if status == "SUCCESS" else f"❌ {status}",
+            })
+
+        st.dataframe(
+            _pd.DataFrame(_hist_rows),
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "Generated At":  st.column_config.TextColumn("Generated At",  width="medium"),
+                "Report Type":   st.column_config.TextColumn("Report Type",   width="medium"),
+                "Period (Days)": st.column_config.NumberColumn("Period (Days)", width="small"),
+                "File Name":     st.column_config.TextColumn("File Name",     width="large"),
+                "Size (KB)":     st.column_config.NumberColumn("Size (KB)",   width="small", format="%.1f"),
+                "Status":        st.column_config.TextColumn("Status",        width="small"),
+            },
         )

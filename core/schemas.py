@@ -337,6 +337,27 @@ def init_db() -> None:
             resolved_at         TEXT,
             PRIMARY KEY (rule_id, user_id)
         );
+
+        CREATE TABLE IF NOT EXISTS cbom_scans (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            scanned_at      TEXT NOT NULL,
+            files_scanned   INTEGER NOT NULL,
+            quantum_safe    INTEGER NOT NULL,
+            hybrid_pqc      INTEGER NOT NULL,
+            classical       INTEGER NOT NULL,
+            vulnerable      INTEGER NOT NULL,
+            verdict         TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS report_history (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            generated_at    TEXT NOT NULL,
+            report_type     TEXT NOT NULL,
+            period_days     INTEGER NOT NULL,
+            file_name       TEXT NOT NULL,
+            file_size_kb    REAL NOT NULL,
+            status          TEXT NOT NULL DEFAULT 'SUCCESS'
+        );
     """)
     con.commit()
 
