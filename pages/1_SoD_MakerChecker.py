@@ -300,15 +300,13 @@ with tab_mc:
                     raise ValueError(resp.text)
             except Exception:
                 data = _mc_submit(maker_id, amount, cid_in)
-            if data["status"] == "SUBMITTED":
+            if data.get("status") in ("SUBMITTED", "PENDING"):
                 st.success(
                     f"Transaction submitted. Awaiting checker approval.  \n"
-                    f"Request ID: `{data['request_id']}`  \n"
-                    f"Correlation ID: `{data['correlation_id']}`"
+                    f"Request ID: `{data['request_id']}` · Correlation ID: `{data['correlation_id']}`"
                 )
             else:
-                st.info(str(data))
-            st.json(data)
+                st.warning(f"Unexpected response status: {data.get('status')}")
 
     with _mc_right:
         st.subheader("Approve or Reject")

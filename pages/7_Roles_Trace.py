@@ -88,29 +88,45 @@ def _render_trace(trace: dict) -> None:
 
 _sidebar.render_page_header(
     "", "Roles and Audit Trace",
-    "See what each user is allowed to do and why. Paste a transaction ID to pull up everything that happened around it, from access request to final audit entry.",
+    "See what each bank employee is allowed to do and why. Paste a transaction ID to pull up everything that happened around it, from access request to final audit entry.",
 )
 
 tab_roles, tab_users, tab_trace = st.tabs(["Role Definitions", "Bank Users", "Trace by Correlation ID"])
 
 with tab_roles:
+    import pandas as _pd
     st.subheader("Role / Tier Definitions")
-    st.caption("No single role can both issue and approve Letters of Undertaking. IT admins have no financial permissions at all.")
 
+    _role_rows = []
     for role in roles_module.ROLES.values():
-        with st.expander(f"**{role.tier}**: {role.name}  ({role.work_class})", expanded=False):
-            c1, c2 = st.columns(2)
-            c1.markdown(f"**Tier:** `{role.tier}`")
-            c1.markdown(f"**Work class:** `{role.work_class}`")
-            c2.markdown(f"**Input limit:** `{role.input_limit or '—'}` ₹")
-            c2.markdown(f"**Auth limit:** `{role.auth_limit or '—'}` ₹")
-            st.markdown("**Entitlements:**")
-            badges = "  ".join(f"`{e}`" for e in sorted(role.entitlements))
-            st.markdown(badges if badges else "_none_")
+        _role_rows.append({
+            "Tier":           role.tier,
+            "Role Name":      role.name,
+            "Work Class":     role.work_class,
+            "Input Limit (₹)":  f"₹{role.input_limit:,}" if role.input_limit else "—",
+            "Auth Limit (₹)":   f"₹{role.auth_limit:,}"  if role.auth_limit  else "—",
+            "# Entitlements": len(role.entitlements),
+            "Entitlements":   ", ".join(sorted(role.entitlements)) or "none",
+        })
+
+    st.dataframe(
+        _pd.DataFrame(_role_rows),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Tier":             st.column_config.TextColumn("Tier",             width="small"),
+            "Role Name":        st.column_config.TextColumn("Role Name",        width="medium"),
+            "Work Class":       st.column_config.TextColumn("Work Class",       width="small"),
+            "Input Limit (₹)":  st.column_config.TextColumn("Input Limit (₹)", width="small"),
+            "Auth Limit (₹)":   st.column_config.TextColumn("Auth Limit (₹)",  width="small"),
+            "# Entitlements":   st.column_config.NumberColumn("# Entitlements", width="small"),
+            "Entitlements":     st.column_config.TextColumn("Entitlements",     width="large"),
+        },
+    )
 
 with tab_users:
-    st.subheader("Seeded Bank Users")
-    st.caption("user_007 is Gokulnath Shetty. His manager role gives him ISSUE_LOU, and someone added APPROVE_LOU on top. That combination is exactly what enabled the PNB fraud.")
+    import pandas as _pd
+    st.subheader("Bank Users")
 
     try:
         resp = requests.get(f"{API}/roles/users", timeout=5)
@@ -123,31 +139,60 @@ with tab_users:
             for u in roles_module.get_all_users()
         ]
 
+    _user_rows = []
     for u in users:
-        role = roles_module.get_role(u["role_id"])
-        tier = role.tier if role else "?"
-        is_pnb = "user_007" in u["user_id"]
-        label = f"{'⚠️ ' if is_pnb else ''}**{u['name']}** (`{u['user_id']}`) · {tier} · {u['branch_sol']}"
-        with st.expander(label, expanded=is_pnb):
-            c1, c2 = st.columns(2)
-            c1.markdown(f"**Role:** `{u['role_id']}`")
-            c1.markdown(f"**Status:** `{u['status']}`")
-            c1.markdown(f"**Last login:** `{u.get('last_login_at', '—')}`")
-            c2.markdown(f"**Branch:** `{u['branch_sol']}`")
-            c2.markdown(f"**Extra entitlements:** {', '.join(u['extra_entitlements']) or '_none_'}")
+        role_obj = roles_module.get_role(u["role_id"])
+        tier     = role_obj.tier if role_obj else "?"
+        role_name = role_obj.name if role_obj else u["role_id"]
+        eff_ents  = u.get("effective_entitlements", [])
+        extra     = u.get("extra_entitlements", [])
+        has_conflict = "ISSUE_LOU" in eff_ents and "APPROVE_LOU" in eff_ents
+        login = u.get("last_login_at") or "—"
+        if login and login != "—":
+            login = str(login)[:10]
+        _user_rows.append({
+            "Flag":                  "⚠️ Conflict" if has_conflict else "✅ Clean",
+            "User ID":               u["user_id"],
+            "Name":                  u["name"],
+            "Role":                  role_name,
+            "Tier":                  tier,
+            "Branch (SOL)":          u["branch_sol"],
+            "Status":                u["status"],
+            "Last Login":            login,
+            "Extra Entitlements":    ", ".join(extra) if extra else "—",
+            "Total Entitlements":    len(eff_ents),
+            "Effective Entitlements": ", ".join(sorted(eff_ents)),
+        })
 
-            ents = u.get("effective_entitlements", [])
-            st.markdown(f"**Effective entitlements ({len(ents)}):** " +
-                        "  ".join(f"`{e}`" for e in ents))
+    st.dataframe(
+        _pd.DataFrame(_user_rows),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Flag":                   st.column_config.TextColumn("Flag",                   width="small"),
+            "User ID":                st.column_config.TextColumn("User ID",                width="small"),
+            "Name":                   st.column_config.TextColumn("Name",                   width="medium"),
+            "Role":                   st.column_config.TextColumn("Role",                   width="medium"),
+            "Tier":                   st.column_config.TextColumn("Tier",                   width="small"),
+            "Branch (SOL)":           st.column_config.TextColumn("Branch (SOL)",           width="small"),
+            "Status":                 st.column_config.TextColumn("Status",                 width="small"),
+            "Last Login":             st.column_config.TextColumn("Last Login",             width="small"),
+            "Extra Entitlements":     st.column_config.TextColumn("Extra Entitlements",     width="medium"),
+            "Total Entitlements":     st.column_config.NumberColumn("Total Entitlements",   width="small"),
+            "Effective Entitlements": st.column_config.TextColumn("Effective Entitlements", width="large"),
+        },
+    )
 
-            if is_pnb:
-                st.error(
-                    "Has both ISSUE_LOU and APPROVE_LOU. The system flags this as a critical conflict before any fraudulent transaction even needs to happen."
-                )
+    if any(r["Flag"] == "⚠️ Conflict" for r in _user_rows):
+        st.error(
+            "⚠️ **Entitlement conflict detected** — one or more bank employees hold both "
+            "ISSUE_LOU and APPROVE_LOU. This combination must never exist in a single identity. "
+            "The SoD engine flags it before any transaction can proceed."
+        )
 
 with tab_trace:
     st.subheader("Trace a Transaction")
-    st.caption("Enter a transaction ID to see the full story behind it: who requested access, what the system decided, what happened in the bank ledger, and what the audit log recorded.")
+    st.caption("Enter a transaction ID to see the full story behind it: which bank employee requested access, what the system decided, what happened in the core banking ledger, and what the audit log recorded.")
 
     cid = st.text_input("Correlation ID", placeholder="paste a correlation_id here…")
 

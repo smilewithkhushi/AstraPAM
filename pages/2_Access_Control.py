@@ -460,6 +460,14 @@ with tab_audit:
 
     # ── Tools row ────────────────────────────────────────────────────────────
     st.subheader("Tools")
+    st.markdown("""
+    <style>
+    div[data-testid="stHorizontalBlock"] div[data-testid="stVerticalBlockBorderWrapper"],
+    div[data-testid="stHorizontalBlock"] div[data-testid="stVerticalBlockBorderWrapper"] > div {
+        height: 100%;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     t1, t2, t3 = st.columns(3)
 
     with t1:
