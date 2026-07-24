@@ -50,13 +50,16 @@ def _upsert_conflicts(conflicts: list[dict]) -> None:
 
 
 def _load_sod_history() -> list[dict]:
-    con = sqlite3.connect(DB_PATH)
-    rows = con.execute(
-        "SELECT rule_id, user_id, entitlement_a, entitlement_b, severity, status,"
-        " first_detected_at, last_scanned_at, resolved_at"
-        " FROM sod_conflicts ORDER BY last_scanned_at DESC"
-    ).fetchall()
-    con.close()
+    try:
+        con = sqlite3.connect(DB_PATH)
+        rows = con.execute(
+            "SELECT rule_id, user_id, entitlement_a, entitlement_b, severity, status,"
+            " first_detected_at, last_scanned_at, resolved_at"
+            " FROM sod_conflicts ORDER BY last_scanned_at DESC"
+        ).fetchall()
+        con.close()
+    except Exception:
+        return []
     cols = ("rule_id", "user_id", "entitlement_a", "entitlement_b", "severity",
             "status", "first_detected_at", "last_scanned_at", "resolved_at")
     return [dict(zip(cols, r)) for r in rows]

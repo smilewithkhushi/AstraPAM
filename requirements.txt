@@ -19,6 +19,7 @@ numpy==2.4.6
 
 # ui
 streamlit==1.59.2
+plotly>=5.0.0
 
 # dev
 ruff==0.15.21

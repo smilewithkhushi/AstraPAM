@@ -25,11 +25,11 @@ _BEH_RISK_MAP = {
 _DEFAULT_BEH = 0.12
 
 _sidebar.render_page_header(
-    "📊", "User Exposure",
-    "Shows how much damage a user could cause, based on their role and access, not just what they have done so far. Some of the riskiest users look completely normal on the surface.",
-)
+    "", "Privilege Exposure",
+    "Ranks every bank employee by how much structural damage they could cause. This is based on the entitlements and authority their role carries, not on anything they've actually done. "
+    "A teller with read-only access is low exposure.")
 
-tab_scores, tab_quadrant, tab_orgmap = st.tabs(["Individual Scores", "Risk × Exposure 2×2", "🗺 Org Risk Map"])
+tab_scores, tab_quadrant, tab_orgmap = st.tabs(["Individual Scores", "Risk vs. Access Matrix", "🗺 Org Risk Map"])
 
 # ── Individual Scores ─────────────────────────────────────────────────────────
 with tab_scores:
@@ -44,44 +44,74 @@ with tab_scores:
     if not scores:
         st.info("Could not fetch scores from API. Is the server running?")
     else:
+        import pandas as pd
+
         scores_sorted = sorted(scores, key=lambda s: s["score"], reverse=True)
+        rows = []
         for s in scores_sorted:
             u = roles_module.get_user(s["user_id"])
             name = u.name if u else s["user_id"]
             role = roles_module.get_role(u.role_id) if u else None
             tier = role.tier if role else "?"
+            comps = s["components"]
+            flag = "🔴 Toxic Entitlement Pair" if "user_007" in s["user_id"] else ""
+            rows.append({
+                "User":               name,
+                "ID":                 s["user_id"],
+                "Tier":               tier,
+                "Exposure %":         round(s["score"] * 100, 1),
+                "Priv Breadth":       round(comps["privilege_breadth"] * 100, 1),
+                "Financial Auth":     round(comps["financial_authority"] * 100, 1),
+                "SoD Conflicts":      round(comps["sod_conflicts"] * 100, 1),
+                "Dormancy":           round(comps["dormancy"] * 100, 1),
+                "Credential Age":     round(comps["credential_age"] * 100, 1),
+                "Is NHI":             bool(comps["is_nhi"]),
+                "Flag":               flag,
+            })
 
-            score_pct = s["score"] * 100
-            color = _sidebar.C_DENY if score_pct > 60 else (_sidebar.C_THROTTLE if score_pct > 35 else _sidebar.C_ALLOW)
-            bar_html = (
-                f'<div style="background:#f3f4f6;border-radius:4px;height:8px;width:100%">'
-                f'<div style="background:{color};width:{score_pct:.1f}%;height:8px;border-radius:4px"></div></div>'
-            )
+        st.dataframe(
+            pd.DataFrame(rows),
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "User":           st.column_config.TextColumn("User",           width="medium"),
+                "ID":             st.column_config.TextColumn("ID",             width="small"),
+                "Tier":           st.column_config.TextColumn("Tier",           width="small"),
+                "Exposure %":     st.column_config.ProgressColumn(
+                                      "Exposure %", min_value=0, max_value=100, format="%.1f%%", width="medium"
+                                  ),
+                "Priv Breadth":   st.column_config.ProgressColumn(
+                                      "Priv Breadth", min_value=0, max_value=100, format="%.1f%%", width="small"
+                                  ),
+                "Financial Auth": st.column_config.ProgressColumn(
+                                      "Financial Auth", min_value=0, max_value=100, format="%.1f%%", width="small"
+                                  ),
+                "SoD Conflicts":  st.column_config.ProgressColumn(
+                                      "SoD Conflicts", min_value=0, max_value=100, format="%.1f%%", width="small"
+                                  ),
+                "Dormancy":       st.column_config.ProgressColumn(
+                                      "Dormancy", min_value=0, max_value=100, format="%.1f%%", width="small"
+                                  ),
+                "Credential Age": st.column_config.ProgressColumn(
+                                      "Credential Age", min_value=0, max_value=100, format="%.1f%%", width="small"
+                                  ),
+                "Is NHI":         st.column_config.CheckboxColumn("Is NHI",     width="small"),
+                "Flag":           st.column_config.TextColumn("Flag",           width="medium"),
+            },
+        )
 
-            with st.expander(
-                f"**{name}** (`{s['user_id']}`) · {tier} · Exposure: **{score_pct:.1f}%**",
-                expanded=("user_007" in s["user_id"]),
-            ):
-                st.markdown(bar_html, unsafe_allow_html=True)
-                st.markdown(f"**Total exposure score: {s['score']:.4f}**")
-                comps = s["components"]
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Privilege breadth", f"{comps['privilege_breadth']:.2%}")
-                c1.metric("Financial authority", f"{comps['financial_authority']:.2%}")
-                c2.metric("SoD conflicts", f"{comps['sod_conflicts']:.2%}")
-                c2.metric("Dormancy", f"{comps['dormancy']:.2%}")
-                c3.metric("Credential age", f"{comps['credential_age']:.2%}")
-                c3.metric("Is NHI", f"{comps['is_nhi']:.0%}")
-
-                if "user_007" in s["user_id"]:
-                    st.error(
-                        "This is the PNB profile. Gokulnath behaves like any normal branch manager, so a behaviour-based system would never flag him. But he holds the exact access combination that made the fraud possible. This page catches that."
-                    )
+        st.warning(
+            "**Gokulnath Shetty (user_007) — Toxic Entitlement Pair detected.** "
+            "Exposure score is high, behavioral risk is 0.09 — looks completely normal to any UEBA tool. "
+            "The risk here is structural: he holds both ISSUE_LOU and APPROVE_LOU simultaneously, "
+            "a combination that SoD rule SOD-001 explicitly prohibits. "
+            "Behavioral monitoring alone would never surface this."
+        )
 
 # ── 2×2 Quadrant ─────────────────────────────────────────────────────────────
 with tab_quadrant:
     st.subheader("Who is actually at risk?")
-    st.caption("Left to right: how suspicious their behaviour looks. Bottom to top: how much access they have. The danger zone is top-left, high access but nothing suspicious yet.")
+    st.caption("Left to right: how suspicious their behavior looks. Bottom to top: how much access they have. The danger zone is top-left — high access, nothing suspicious yet.")
 
     try:
         exp_resp = requests.get(f"{API}/exposure", timeout=5)
@@ -177,13 +207,20 @@ with tab_quadrant:
 
     st.divider()
     st.info(
-        "Gokulnath (the PNB case) lands in the top-left. His day-to-day behaviour looks completely normal, so any system that only watches what people do would give him a clean pass. What gives him away is what he is allowed to do. Behaviour monitoring and access monitoring are not the same thing."
+        "Gokulnath Shetty lands in the top-left — high structural exposure, near-zero behavioral anomaly. "
+        "Any system that only watches what users do would give him a clean pass. "
+        "What gives him away is what he is structurally allowed to do. "
+        "Behavioral monitoring and access monitoring are not the same thing — this quadrant is why both are needed."
     )
 
 # ── Org Risk Map ──────────────────────────────────────────────────────────────
 with tab_orgmap:
-    st.subheader("Branch Overview")
-    st.caption("Risk across all branches at a glance. SOL003 looks quiet, but it carries the highest structural risk. That is exactly the pattern that went unnoticed at PNB for seven years.")
+    st.subheader("Risk Across All Branches")
+    st.caption(
+        "Each branch is scored on five dimensions of risk. "
+        "A branch can look perfectly quiet day-to-day and still carry serious structural exposure — "
+        "that gap is exactly what this view is designed to surface."
+    )
 
     from core import broker as _broker
     import plotly.graph_objects as go
@@ -248,19 +285,44 @@ with tab_orgmap:
         if s["avg_exposure"] > 0.55 or s["sod_conflicts"] > 0
     )
 
-    m1, m2, m3, m4 = st.columns(4, gap="small")
-    m1.metric("Identities", total_users, help="Across all branches incl. NHI")
-    m2.metric("SoD Conflicts", total_sod,
-              delta="CRITICAL" if total_sod > 0 else None,
-              delta_color="inverse")
-    m3.metric("Open Grants", total_grants)
-    m4.metric("Branches at Risk", f"{critical_branches}/{len(branch_stats)}",
-              delta="review needed" if critical_branches > 0 else None,
-              delta_color="inverse")
+    def _stat_card(label: str, value: str, accent: str = "#374151", sub: str = "") -> str:
+        sub_html = f"<div style='font-size:0.7rem;color:{accent};margin-top:2px'>{sub}</div>" if sub else ""
+        return (
+            f"<div style='border:1.5px solid #e5e7eb;border-radius:8px;padding:12px 16px;"
+            f"text-align:center;background:#fff;flex:1'>"
+            f"<div style='font-size:0.7rem;color:#6b7280;font-weight:600;text-transform:uppercase;"
+            f"letter-spacing:.04em;white-space:nowrap'>{label}</div>"
+            f"<div style='font-size:1.6rem;font-weight:800;color:{accent};line-height:1.3'>{value}</div>"
+            f"{sub_html}</div>"
+        )
+
+    sod_accent   = "#dc2626" if total_sod > 0 else "#374151"
+    risk_accent  = "#dc2626" if critical_branches > 0 else "#374151"
+
+    st.markdown(
+        "<div style='display:flex;gap:12px;margin-bottom:4px'>"
+        + _stat_card("Bank Employees",        str(total_users),                           "#374151", "across all branches incl. service accounts")
+        + _stat_card("Entitlement Conflicts", str(total_sod),                             sod_accent,  "needs immediate review" if total_sod > 0 else "none detected")
+        + _stat_card("Active Access Grants",  str(total_grants),                          "#374151", "open JIT sessions right now")
+        + _stat_card("Branches at Risk",      f"{critical_branches}/{len(branch_stats)}", risk_accent, "review needed" if critical_branches > 0 else "all clear")
+        + "</div>",
+        unsafe_allow_html=True,
+    )
 
     st.divider()
 
-    DIMENSIONS = ["Avg Exposure", "Avg Beh Risk", "SoD Conflicts", "High-Priv %", "Open Grants"]
+    with st.expander("What do these 5 dimensions mean?", expanded=False):
+        st.markdown(
+            "| Dimension | What it measures |\n"
+            "|---|---|\n"
+            "| **Structural Exposure** | Average privilege score of staff in this branch — how much damage they could cause based on their role alone |\n"
+            "| **Behavioral Risk** | Average anomaly score from the LSTM model — how suspicious their recent activity patterns look |\n"
+            "| **Entitlement Conflicts** | Number of staff who hold two entitlements that should never coexist (e.g. issue + approve on the same transaction) |\n"
+            "| **High-Privilege Staff** | Share of branch staff in senior roles (Manager, IT Admin, or service accounts) |\n"
+            "| **Active Access Grants** | Open JIT sessions in this branch right now — temporary access that has been issued but not yet expired |\n"
+        )
+
+    DIMENSIONS = ["Structural Exposure", "Behavioral Risk", "Entitlement Conflicts", "High-Privilege Staff", "Active Grants"]
     branch_list = list(branch_stats.keys())
 
     def _norm(vals: list[float]) -> list[float]:
@@ -268,22 +330,22 @@ with tab_orgmap:
         return [v / mx for v in vals]
 
     raw = {
-        "Avg Exposure":  [branch_stats[b]["avg_exposure"]    for b in branch_list],
-        "Avg Beh Risk":  [branch_stats[b]["avg_beh_risk"]    for b in branch_list],
-        "SoD Conflicts": [float(branch_stats[b]["sod_conflicts"]) for b in branch_list],
-        "High-Priv %":   [branch_stats[b]["high_priv_pct"]   for b in branch_list],
-        "Open Grants":   [float(branch_stats[b]["open_grants"])   for b in branch_list],
+        "Structural Exposure":   [branch_stats[b]["avg_exposure"]            for b in branch_list],
+        "Behavioral Risk":       [branch_stats[b]["avg_beh_risk"]            for b in branch_list],
+        "Entitlement Conflicts": [float(branch_stats[b]["sod_conflicts"])    for b in branch_list],
+        "High-Privilege Staff":  [branch_stats[b]["high_priv_pct"]           for b in branch_list],
+        "Active Grants":         [float(branch_stats[b]["open_grants"])      for b in branch_list],
     }
 
     z_norm = [_norm(raw[d]) for d in DIMENSIONS]
 
     annotation_text = []
     fmt = {
-        "Avg Exposure":  lambda b: f"{branch_stats[b]['avg_exposure']:.2f}",
-        "Avg Beh Risk":  lambda b: f"{branch_stats[b]['avg_beh_risk']:.2f}",
-        "SoD Conflicts": lambda b: str(branch_stats[b]["sod_conflicts"]),
-        "High-Priv %":   lambda b: f"{branch_stats[b]['high_priv_pct']:.0%}",
-        "Open Grants":   lambda b: str(branch_stats[b]["open_grants"]),
+        "Structural Exposure":   lambda b: f"{branch_stats[b]['avg_exposure']:.2f}",
+        "Behavioral Risk":       lambda b: f"{branch_stats[b]['avg_beh_risk']:.2f}",
+        "Entitlement Conflicts": lambda b: str(branch_stats[b]["sod_conflicts"]),
+        "High-Privilege Staff":  lambda b: f"{branch_stats[b]['high_priv_pct']:.0%}",
+        "Active Grants":         lambda b: str(branch_stats[b]["open_grants"]),
     }
     for dim in DIMENSIONS:
         annotation_text.append([fmt[dim](b) for b in branch_list])
@@ -323,9 +385,13 @@ with tab_orgmap:
     st.plotly_chart(fig_hm, width="stretch")
 
     st.divider()
-    st.subheader("Branch Risk Cards")
+    st.subheader("Per-Branch Breakdown")
+    st.caption("Sorted by overall risk score (entitlement conflicts weighted highest). 🔴 = critical · 🟡 = elevated · 🟢 = low.")
 
-    sorted_branches = sorted(
+    import pandas as _pd
+
+    branch_rows = []
+    for branch in sorted(
         branch_list,
         key=lambda b: (
             branch_stats[b]["sod_conflicts"] * 0.5 +
@@ -333,64 +399,49 @@ with tab_orgmap:
             branch_stats[b]["avg_beh_risk"] * 0.2
         ),
         reverse=True,
-    )
-
-    card_cols = st.columns(len(sorted_branches), gap="small")
-
-    for col, branch in zip(card_cols, sorted_branches):
+    ):
         s = branch_stats[branch]
         is_critical = s["sod_conflicts"] > 0 or s["avg_exposure"] > 0.55
-        risk_icon = "🔴" if is_critical else ("🟡" if s["avg_exposure"] > 0.35 else "🟢")
-        border_color = "#dc2626" if is_critical else ("#f59e0b" if s["avg_exposure"] > 0.35 else "#16a34a")
-        sod_color = "#dc2626" if s["sod_conflicts"] > 0 else "inherit"
-        branch_subtitle = BRANCH_LABELS[branch].replace("\n", " · ")
+        status = "🔴 Critical" if is_critical else ("🟡 Elevated" if s["avg_exposure"] > 0.35 else "🟢 Low")
+        label = BRANCH_LABELS[branch].replace("\n", " · ")
+        member_names = ", ".join(u.name for u in s["members"])
+        branch_rows.append({
+            "Status":                  status,
+            "Branch":                  label,
+            "Staff":                   len(s["members"]),
+            "Avg Structural Exposure": round(s["avg_exposure"], 2),
+            "Avg Behavioral Risk":     round(s["avg_beh_risk"], 2),
+            "Entitlement Conflicts":   s["sod_conflicts"],
+            "Active Grants":           s["open_grants"],
+            "High-Privilege Staff":    f"{s['high_priv_pct']:.0%}",
+            "Members":                 member_names,
+        })
 
-        with col:
-            st.markdown(
-                f"<div style='border:2px solid {border_color};border-radius:8px;padding:12px 14px'>"
-                f"<div style='font-weight:700;font-size:0.95rem'>{risk_icon} {branch}</div>"
-                f"<div style='color:#6b7280;font-size:0.78rem;margin-bottom:8px'>"
-                f"{branch_subtitle} · {len(s['members'])} identities</div>"
-                f"<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px'>"
-                f"<div><div style='font-size:0.7rem;color:#6b7280'>Exposure</div>"
-                f"<div style='font-weight:700;font-size:1rem'>{s['avg_exposure']:.2f}</div></div>"
-                f"<div><div style='font-size:0.7rem;color:#6b7280'>Beh Risk</div>"
-                f"<div style='font-weight:700;font-size:1rem'>{s['avg_beh_risk']:.2f}</div></div>"
-                f"<div><div style='font-size:0.7rem;color:#6b7280'>SoD Conflicts</div>"
-                f"<div style='font-weight:700;font-size:1rem;color:{sod_color}'>"
-                f"{s['sod_conflicts']}</div></div>"
-                f"<div><div style='font-size:0.7rem;color:#6b7280'>Open Grants</div>"
-                f"<div style='font-weight:700;font-size:1rem'>{s['open_grants']}</div></div>"
-                f"</div>"
-                f"<div style='font-size:0.72rem;font-weight:600;color:#374151;margin-bottom:4px'>Identities</div>",
-                unsafe_allow_html=True,
-            )
-            for u in s["members"]:
-                role = roles_module.get_role(u.role_id)
-                tier = role.tier if role else u.role_id
-                exp_score = exp_map.get(u.user_id, 0.0)
-                beh_score = _BEH_RISK_MAP.get(u.user_id, _DEFAULT_BEH)
-                has_sod   = u.user_id in conflict_users
-                has_grant = u.user_id in grants_by_user
-                flags = (
-                    ("⚠️ " if has_sod else "") +
-                    ("🔑 " if has_grant else "") +
-                    ("🔴 " if exp_score > 0.6 else "") +
-                    ("🟠 " if beh_score > 0.5 else "")
-                ).strip() or "✅"
-                st.markdown(
-                    f"<div style='font-size:0.75rem;padding:3px 0;border-bottom:1px solid #f3f4f6'>"
-                    f"<span style='font-family:monospace'>{u.user_id}</span> {u.name} "
-                    f"<span style='color:#6b7280'>T{tier}</span> {flags}</div>",
-                    unsafe_allow_html=True,
-                )
-            if branch == "SOL003":
-                st.markdown(
-                    "<div style='margin-top:8px;padding:6px 8px;background:#fef2f2;"
-                    "border-radius:4px;font-size:0.72rem;color:#991b1b'>"
-                    "PNB pattern: user_007 can issue AND approve LoUs alone. "
-                    "Behaviour looks normal (0.09) — only structural access check catches this."
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
-            st.markdown("</div>", unsafe_allow_html=True)
+    st.dataframe(
+        _pd.DataFrame(branch_rows),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Status":                  st.column_config.TextColumn("Status",                  width="small"),
+            "Branch":                  st.column_config.TextColumn("Branch",                  width="medium"),
+            "Staff":                   st.column_config.NumberColumn("Staff",                 width="small"),
+            "Avg Structural Exposure": st.column_config.ProgressColumn(
+                                           "Avg Structural Exposure", min_value=0, max_value=1,
+                                           format="%.2f", width="medium"
+                                       ),
+            "Avg Behavioral Risk":     st.column_config.ProgressColumn(
+                                           "Avg Behavioral Risk", min_value=0, max_value=1,
+                                           format="%.2f", width="medium"
+                                       ),
+            "Entitlement Conflicts":   st.column_config.NumberColumn("Entitlement Conflicts", width="small"),
+            "Active Grants":           st.column_config.NumberColumn("Active Grants",         width="small"),
+            "High-Privilege Staff":    st.column_config.TextColumn("High-Privilege Staff",    width="small"),
+            "Members":                 st.column_config.TextColumn("Members",                 width="large"),
+        },
+    )
+
+    st.warning(
+        "⚠️ **SOL003 Chandigarh** — Entitlement conflict detected. "
+        "One or more staff hold both issue and approve authority on the same transaction type. "
+        "Behavioral risk appears low, but the structural access combination is flagged by SoD rule SOD-001."
+    )

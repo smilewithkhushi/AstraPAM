@@ -87,7 +87,7 @@ def _render_trace(trace: dict) -> None:
 
 
 _sidebar.render_page_header(
-    "🏦", "Roles and Audit Trace",
+    "", "Roles and Audit Trace",
     "See what each user is allowed to do and why. Paste a transaction ID to pull up everything that happened around it, from access request to final audit entry.",
 )
 

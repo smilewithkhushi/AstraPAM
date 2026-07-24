@@ -411,13 +411,16 @@ with tab_audit:
     st.subheader("Access Request History")
     st.caption("Every access decision logged — allows, denials, step-ups, throttles, and break-glass events.")
 
-    con  = sqlite3.connect(DB_PATH)
-    rows = con.execute(
-        "SELECT requested_at, user_id, target, action_type, decision, risk_score,"
-        "       attack_tags, grant_id, break_glass, correlation_id"
-        " FROM access_request_log ORDER BY requested_at DESC LIMIT 200"
-    ).fetchall()
-    con.close()
+    try:
+        con  = sqlite3.connect(DB_PATH)
+        rows = con.execute(
+            "SELECT requested_at, user_id, target, action_type, decision, risk_score,"
+            "       attack_tags, grant_id, break_glass, correlation_id"
+            " FROM access_request_log ORDER BY requested_at DESC LIMIT 200"
+        ).fetchall()
+        con.close()
+    except Exception:
+        rows = []
 
     if not rows:
         st.info("No access requests logged yet.")
