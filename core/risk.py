@@ -16,10 +16,12 @@ import numpy as np
 import shap
 import torch
 import torch.nn as nn
+from sklearn.preprocessing import StandardScaler
 
 from .schemas import AttackTag, Decision, RiskFactor, RiskResult
 
 MODEL_DIR = Path("data/model")
+_FALLBACK_MODEL_DIR = Path("/tmp/astra_model")
 
 # feature names must match what train.py produces
 FEATURES: list[str] = [
@@ -60,20 +62,70 @@ class LSTMAe(nn.Module):
 
 # ── artifact loading ──────────────────────────────────────────────────────────
 
+def _bootstrap_synthetic(target_dir: Path) -> None:
+    """Train a small synthetic LSTM-AE and save artifacts to target_dir."""
+    import torch.nn.functional as F
+
+    rng = np.random.default_rng(42)
+    rows = []
+    for uid in range(300):
+        is_mal = uid >= 260
+        for _ in range(30):
+            if is_mal:
+                rows.append([rng.integers(1, 3), rng.uniform(0.6, 1.0), rng.integers(2, 5),
+                              rng.integers(3, 12), rng.integers(80, 200), rng.integers(1, 5), rng.integers(0, 3)])
+            else:
+                rows.append([rng.integers(1, 8), rng.uniform(0.0, 0.15), rng.integers(1, 2),
+                              rng.integers(0, 2), rng.integers(5, 30), rng.integers(20, 100), rng.integers(5, 25)])
+
+    X_raw = np.array(rows, dtype=np.float32)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_raw)
+    X_norm = X_scaled[:260 * 30]
+
+    seqs = np.stack([X_norm[i: i + SEQ_LEN] for i in range(len(X_norm) - SEQ_LEN + 1)]).astype(np.float32)
+
+    torch.manual_seed(42)
+    model = LSTMAe()
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    X_t = torch.tensor(seqs)
+    model.train()
+    for _ in range(20):
+        idx = torch.randperm(len(X_t))
+        for i in range(0, len(X_t), 64):
+            b = X_t[idx[i: i + 64]]
+            loss = F.mse_loss(model(b), b)
+            opt.zero_grad(); loss.backward(); opt.step()
+    model.eval()
+
+    with torch.no_grad():
+        errs = ((model(X_t) - X_t) ** 2).mean(dim=(1, 2)).numpy()
+    mu, sigma = float(errs.mean()), float(errs.std())
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), target_dir / "lstm_ae.pt")
+    with open(target_dir / "scaler.pkl", "wb") as f:
+        pickle.dump(scaler, f)
+    with open(target_dir / "meta.json", "w") as f:
+        json.dump({"features": FEATURES, "hidden": HIDDEN, "seq_len": SEQ_LEN,
+                   "error_mu": mu, "error_sigma": sigma}, f)
+
+
 @lru_cache(maxsize=1)
 def _load() -> tuple[LSTMAe, object, dict]:
-    """Lazy-load weights, scaler, meta once. Raises clearly if train.py not run."""
-    if not (MODEL_DIR / "lstm_ae.pt").exists():
-        raise RuntimeError(
-            "No model artifact. Run first:  python train.py --synth  "
-            "(or python train.py  with CERT data in data/cert_r4.2/)"
-        )
-    with open(MODEL_DIR / "meta.json") as f:
+    """Lazy-load weights, scaler, meta once. Auto-bootstraps synthetic model if missing."""
+    # Prefer committed repo artifacts; fall back to a writable temp location.
+    model_dir = MODEL_DIR if (MODEL_DIR / "lstm_ae.pt").exists() else _FALLBACK_MODEL_DIR
+
+    if not (model_dir / "lstm_ae.pt").exists():
+        _bootstrap_synthetic(model_dir)
+
+    with open(model_dir / "meta.json") as f:
         meta = json.load(f)
-    with open(MODEL_DIR / "scaler.pkl", "rb") as f:
+    with open(model_dir / "scaler.pkl", "rb") as f:
         scaler = pickle.load(f)
     model = LSTMAe(n_features=len(meta["features"]), hidden=meta["hidden"])
-    model.load_state_dict(torch.load(MODEL_DIR / "lstm_ae.pt", map_location="cpu"))
+    model.load_state_dict(torch.load(model_dir / "lstm_ae.pt", map_location="cpu"))
     model.eval()
     return model, scaler, meta
 

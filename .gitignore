@@ -19,17 +19,21 @@ build/
 .pytest_cache/
 .ipynb_checkpoints/
 
-data/
+data/cert_r4.2/
+data/raw/
 *.csv
 *.xlsx
 
-# Trained model artifacts
+# Trained model artifacts (allow the committed demo weights)
 *.pt
 *.pth
 *.pkl
 *.npy
 *.npz
 *.onnx
+!data/model/lstm_ae.pt
+!data/model/meta.json
+!data/model/scaler.pkl
 
 *.db
 *.sqlite

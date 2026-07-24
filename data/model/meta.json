@@ -1,0 +1,17 @@
+{
+  "features": [
+    "logon_count",
+    "after_hours",
+    "unique_pcs",
+    "device_events",
+    "file_events",
+    "http_events",
+    "email_events"
+  ],
+  "hidden": 32,
+  "seq_len": 5,
+  "error_mu": 0.005248411558568478,
+  "error_sigma": 0.0029594567604362965,
+  "auc": 1.0,
+  "fpr_at_95tpr": 0.0
+}
