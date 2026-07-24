@@ -13,7 +13,7 @@ import _sidebar
 from core import risk as risk_engine
 from core import roles as roles_module
 
-st.set_page_config(page_title="Exposure Score", page_icon="📊", layout="wide")
+st.set_page_config(page_title="AstraPAM · Exposure Score", page_icon="🛡", layout="wide")
 
 API = _sidebar.API_URL
 
@@ -185,7 +185,7 @@ with tab_orgmap:
     st.subheader("Branch Overview")
     st.caption("Risk across all branches at a glance. SOL003 looks quiet, but it carries the highest structural risk. That is exactly the pattern that went unnoticed at PNB for seven years.")
 
-    import broker as _broker
+    from core import broker as _broker
     import plotly.graph_objects as go
 
     try:
@@ -248,14 +248,14 @@ with tab_orgmap:
         if s["avg_exposure"] > 0.55 or s["sod_conflicts"] > 0
     )
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Identities", total_users, help="Across all branches incl. NHI")
+    m1, m2, m3, m4 = st.columns(4, gap="small")
+    m1.metric("Identities", total_users, help="Across all branches incl. NHI")
     m2.metric("SoD Conflicts", total_sod,
               delta="CRITICAL" if total_sod > 0 else None,
               delta_color="inverse")
     m3.metric("Open Grants", total_grants)
-    m4.metric("Branches at Risk", f"{critical_branches} / {len(branch_stats)}",
-              delta="requires review" if critical_branches > 0 else None,
+    m4.metric("Branches at Risk", f"{critical_branches}/{len(branch_stats)}",
+              delta="review needed" if critical_branches > 0 else None,
               delta_color="inverse")
 
     st.divider()
@@ -335,45 +335,62 @@ with tab_orgmap:
         reverse=True,
     )
 
-    for branch in sorted_branches:
+    card_cols = st.columns(len(sorted_branches), gap="small")
+
+    for col, branch in zip(card_cols, sorted_branches):
         s = branch_stats[branch]
         is_critical = s["sod_conflicts"] > 0 or s["avg_exposure"] > 0.55
-        risk_label   = "🔴 HIGH RISK" if is_critical else ("🟡 ELEVATED" if s["avg_exposure"] > 0.35 else "🟢 NORMAL")
+        risk_icon = "🔴" if is_critical else ("🟡" if s["avg_exposure"] > 0.35 else "🟢")
+        border_color = "#dc2626" if is_critical else ("#f59e0b" if s["avg_exposure"] > 0.35 else "#16a34a")
+        sod_color = "#dc2626" if s["sod_conflicts"] > 0 else "inherit"
+        branch_subtitle = BRANCH_LABELS[branch].replace("\n", " · ")
 
-        with st.expander(
-            f"{risk_label}  ·  **{branch}** · {len(s['members'])} identities",
-            expanded=is_critical,
-        ):
-            mc1, mc2, mc3, mc4 = st.columns(4)
-            mc1.metric("Avg Exposure",   f"{s['avg_exposure']:.2f}")
-            mc2.metric("Avg Beh Risk",   f"{s['avg_beh_risk']:.2f}")
-            mc3.metric("SoD Conflicts",  s["sod_conflicts"],
-                       delta="CRITICAL" if s["sod_conflicts"] > 0 else None,
-                       delta_color="inverse")
-            mc4.metric("Open Grants",    s["open_grants"])
-
-            st.markdown("**Identities in this branch:**")
+        with col:
+            st.markdown(
+                f"<div style='border:2px solid {border_color};border-radius:8px;padding:12px 14px'>"
+                f"<div style='font-weight:700;font-size:0.95rem'>{risk_icon} {branch}</div>"
+                f"<div style='color:#6b7280;font-size:0.78rem;margin-bottom:8px'>"
+                f"{branch_subtitle} · {len(s['members'])} identities</div>"
+                f"<div style='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px'>"
+                f"<div><div style='font-size:0.7rem;color:#6b7280'>Exposure</div>"
+                f"<div style='font-weight:700;font-size:1rem'>{s['avg_exposure']:.2f}</div></div>"
+                f"<div><div style='font-size:0.7rem;color:#6b7280'>Beh Risk</div>"
+                f"<div style='font-weight:700;font-size:1rem'>{s['avg_beh_risk']:.2f}</div></div>"
+                f"<div><div style='font-size:0.7rem;color:#6b7280'>SoD Conflicts</div>"
+                f"<div style='font-weight:700;font-size:1rem;color:{sod_color}'>"
+                f"{s['sod_conflicts']}</div></div>"
+                f"<div><div style='font-size:0.7rem;color:#6b7280'>Open Grants</div>"
+                f"<div style='font-weight:700;font-size:1rem'>{s['open_grants']}</div></div>"
+                f"</div>"
+                f"<div style='font-size:0.72rem;font-weight:600;color:#374151;margin-bottom:4px'>Identities</div>",
+                unsafe_allow_html=True,
+            )
             for u in s["members"]:
                 role = roles_module.get_role(u.role_id)
                 tier = role.tier if role else u.role_id
                 exp_score = exp_map.get(u.user_id, 0.0)
                 beh_score = _BEH_RISK_MAP.get(u.user_id, _DEFAULT_BEH)
-                has_sod = u.user_id in conflict_users
+                has_sod   = u.user_id in conflict_users
                 has_grant = u.user_id in grants_by_user
-
-                flags = []
-                if has_sod:   flags.append("⚠️ SoD conflict")
-                if has_grant: flags.append("🔑 active grant")
-                if exp_score > 0.6: flags.append("🔴 high exposure")
-                if beh_score > 0.5: flags.append("🟠 beh anomaly")
-
-                flag_str = "  ·  ".join(flags) if flags else "✅ clean"
+                flags = (
+                    ("⚠️ " if has_sod else "") +
+                    ("🔑 " if has_grant else "") +
+                    ("🔴 " if exp_score > 0.6 else "") +
+                    ("🟠 " if beh_score > 0.5 else "")
+                ).strip() or "✅"
                 st.markdown(
-                    f"&nbsp;&nbsp;`{u.user_id}` **{u.name}** ({tier}) "
-                    f"· exp `{exp_score:.2f}` · beh `{beh_score:.2f}` · {flag_str}"
+                    f"<div style='font-size:0.75rem;padding:3px 0;border-bottom:1px solid #f3f4f6'>"
+                    f"<span style='font-family:monospace'>{u.user_id}</span> {u.name} "
+                    f"<span style='color:#6b7280'>T{tier}</span> {flags}</div>",
+                    unsafe_allow_html=True,
                 )
-
             if branch == "SOL003":
-                st.error(
-                    "SOL003 is the PNB branch. user_007 can both issue and approve LoUs with no one else needed. His behaviour score is normal (0.09), so a standard monitoring tool would clear him. AstraPAM flags the access combination regardless."
+                st.markdown(
+                    "<div style='margin-top:8px;padding:6px 8px;background:#fef2f2;"
+                    "border-radius:4px;font-size:0.72rem;color:#991b1b'>"
+                    "PNB pattern: user_007 can issue AND approve LoUs alone. "
+                    "Behaviour looks normal (0.09) — only structural access check catches this."
+                    "</div>",
+                    unsafe_allow_html=True,
                 )
+            st.markdown("</div>", unsafe_allow_html=True)

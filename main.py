@@ -14,9 +14,13 @@ from core import crypto
 from core import nhi as nhi_module
 from core import reconcile
 from core import roles as roles_module
-from core.schemas import ActionType, ConsoleActionType, init_db
+from core.schemas import (
+    AccessRequest, ActionType, ConsoleAction, ConsoleActionType,
+    DB_PATH, ExposureScore, MakerCheckerReq, init_db,
+)
 
 _now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+_DB = DB_PATH
 
 
 @asynccontextmanager
@@ -88,7 +92,6 @@ def health() -> dict:
 
 @app.post("/access/request")
 def access_request(body: AccessRequestBody) -> Any:
-    from schemas import AccessRequest
     cid = body.correlation_id or str(uuid.uuid4())
     req = AccessRequest(
         user_id=body.user_id,
@@ -282,7 +285,6 @@ def maker_checker_submit(body: FinancialActionBody) -> dict:
     If the acting user has no auth_limit or the amount is below it, the action
     is auto-approved (single-user flow). Otherwise it enters PENDING state.
     """
-    from schemas import MakerCheckerReq
     cid = body.correlation_id or str(uuid.uuid4())
     req_id = str(uuid.uuid4())
     now = _now()
@@ -307,7 +309,6 @@ def maker_checker_submit(body: FinancialActionBody) -> dict:
         created_at=now,
         decided_at=now if not needs_checker else None,
     )
-    from schemas import DB_PATH as _DB
     con = _sqlite3.connect(_DB)
     con.execute(
         "INSERT INTO maker_checker_reqs"
@@ -338,7 +339,6 @@ def maker_checker_decide(body: MakerCheckerBody) -> dict:
 
     Self-approval (checker_id == maker_id) is blocked with SELF_APPROVAL_BLOCKED.
     """
-    from schemas import DB_PATH as _DB
     con = _sqlite3.connect(_DB)
     row = con.execute(
         "SELECT request_id, correlation_id, maker_id, action_type, amount, status, created_at"
@@ -380,7 +380,6 @@ def maker_checker_decide(body: MakerCheckerBody) -> dict:
 
 @app.get("/maker-checker/list")
 def maker_checker_list() -> list:
-    from schemas import DB_PATH as _DB
     con = _sqlite3.connect(_DB)
     rows = con.execute(
         "SELECT request_id, correlation_id, maker_id, checker_id, action_type, amount, status, created_at, decided_at"
@@ -409,7 +408,6 @@ def console_action(body: ConsoleActionBody) -> dict:
     BLOCK requires an approver_id (maker-checker). FREEZE is single-operator
     but flagged. All actions are written to the signed audit chain.
     """
-    from schemas import ConsoleAction, DB_PATH as _DB
 
     if body.action == "BLOCK" and not body.approver_id:
         raise HTTPException(
@@ -486,7 +484,6 @@ def _apply_console_action(user_id: str, action: str) -> None:
 
 @app.get("/console/actions")
 def console_actions_list() -> list:
-    from schemas import DB_PATH as _DB
     con = _sqlite3.connect(_DB)
     rows = con.execute(
         "SELECT action_id, correlation_id, operator_id, target_user_id, action,"
@@ -508,7 +505,6 @@ def console_user_status(user_id: str) -> dict:
 
 @app.get("/exposure/{user_id}")
 def exposure_score(user_id: str) -> dict:
-    from schemas import ExposureScore, DB_PATH as _DB
     u = roles_module.get_user(user_id)
     if not u:
         raise HTTPException(status_code=404, detail="User not found")
@@ -564,7 +560,6 @@ def all_exposure_scores() -> list:
 @app.get("/trace/{correlation_id}")
 def trace_correlation(correlation_id: str) -> dict:
     """Return every artifact linked to a correlation_id across all modules."""
-    from schemas import DB_PATH as _DB
     con = _sqlite3.connect(_DB)
 
     grants = con.execute(

@@ -116,7 +116,7 @@ def request_access(req: AccessRequest, session_features: dict[str, float]) -> di
     con.commit()
     con.close()
 
-    import roles as _roles
+    from . import roles as _roles
     role_name = ""
     branch = ""
     if bank_user:

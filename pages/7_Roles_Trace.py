@@ -8,7 +8,7 @@ import streamlit as st
 import _sidebar
 from core import roles as roles_module
 
-st.set_page_config(page_title="Roles & Trace", page_icon="🏦", layout="wide")
+st.set_page_config(page_title="AstraPAM · Roles & Trace", page_icon="🛡", layout="wide")
 
 API = _sidebar.API_URL
 

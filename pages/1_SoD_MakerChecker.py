@@ -7,13 +7,13 @@ import streamlit as st
 import _sidebar
 from core import roles as roles_module
 
-st.set_page_config(page_title="SoD & Maker-Checker", page_icon="⚖️", layout="wide")
+st.set_page_config(page_title="AstraPAM · SoD & Maker-Checker", page_icon="🛡", layout="wide")
 
 API = _sidebar.API_URL
 
 _sidebar.render_page_header(
-    "⚖️", "Segregation of Duties",
-    "Catches situations where one person has too much power, like being able to both create and approve a transaction. Every high-value action needs a second person to sign off.",
+    "", "Segregation of Duties",
+    "This feature catches situations where one person has too much power & access (eg: able to both create and approve a transaction). Every high-value action needs a second person to sign off.",
 )
 
 tab_sod, tab_mc = st.tabs(["SoD Conflict Scan", "Maker-Checker Requests"])
@@ -32,6 +32,8 @@ with tab_sod:
             "Severity": severity.upper(),
         })
     st.table(sod_data)
+
+    st.divider()
 
     _scan_left, _scan_right = st.columns(2)
 
@@ -60,8 +62,9 @@ with tab_sod:
                     )
                     if c["rule_id"] == "SOD-001":
                         st.warning(
-                            "This is the PNB combination. One person could both create and approve Letters of Undertaking, with no one else in the loop. That single gap led to ₹11,400 Cr in fraud over 7 years."
+                            "This user can create and approve Letters of Undertaking, with no one else in the loop, leaving a gap for potential fraud."
                         )
+
 
     with _scan_right:
         st.subheader("Per-User Scan")

@@ -38,8 +38,6 @@ with st.expander("📖 JIT Access lifecycle", expanded=False):
         caption="Zero Standing Privilege. No permanent access. Every grant is time-limited, scoped, and auto-revoked.",
     )
 
-st.divider()
-
 # ── JIT ACCESS REQUEST ────────────────────────────────────────────────────────
 st.subheader("Request Access")
 
@@ -128,7 +126,7 @@ with st.container(border=True):
                 data = resp.json() if resp.ok else None
             except Exception:
                 try:
-                    from schemas import AccessRequest as AR
+                    from core.schemas import AccessRequest as AR
                     req_obj = AR(
                         user_id=req_user,
                         target=req_target,
@@ -241,6 +239,7 @@ col_grants, col_tools = st.columns([3, 2])
 
 with col_grants:
     st.subheader("Active JIT Grants")
+    st.caption("Just-In-Time access: credentials are created the moment they are needed and automatically deleted when the window closes, so there is nothing to steal in between.")
 
     try:
         broker.expire_stale()
@@ -280,6 +279,7 @@ with col_grants:
 
     st.divider()
     st.subheader("Audit Log")
+    st.caption("Every access decision is written to a cryptographically linked chain. If any record is altered or deleted, the next verification will catch it.")
 
     cs = st.session_state.get("chain_status") or crypto.verify_chain()
 
@@ -300,6 +300,7 @@ with col_grants:
 
     st.divider()
     st.subheader("Encryption Keys")
+    st.caption("Each credential uses a post-quantum algorithm so it stays safe even against future quantum computers, not just today's threats.")
 
     art = st.session_state.get("last_artifact")
 
@@ -315,6 +316,7 @@ with col_grants:
 
 with col_tools:
     st.subheader("Credential Tools")
+    st.caption("Actions you can take on the system directly — issue a key, verify the log, trigger emergency access, or test tamper detection.")
 
     with st.container(border=True):
         st.markdown("**Issue Credential**")

@@ -6,24 +6,33 @@ import os
 
 _MOBILE_CSS = """
 <style>
+/* ── Bordered containers: stronger shadow + border in light mode ── */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    border: 1.5px solid #c9d1dc !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10) !important;
+    border-radius: 8px !important;
+}
+
+/* ── Column rows: more breathing room between horizontal items ── */
+div[data-testid="stHorizontalBlock"] {
+    gap: 1.5rem !important;
+}
+
 @media (max-width: 768px) {
-    /* Stack all column groups vertically */
     div[data-testid="stHorizontalBlock"] {
         flex-direction: column !important;
+        gap: 0.75rem !important;
     }
     div[data-testid="column"] {
         width: 100% !important;
         min-width: 100% !important;
         flex: 1 1 100% !important;
     }
-    /* Make tables and dataframes scroll horizontally */
     div[data-testid="stDataFrame"],
     div[data-testid="stTable"] {
         overflow-x: auto !important;
     }
-    /* Reduce header font size */
     h2 { font-size: 1.3rem !important; }
-    /* Shrink metric labels */
     div[data-testid="stMetric"] label { font-size: 0.75rem !important; }
 }
 </style>

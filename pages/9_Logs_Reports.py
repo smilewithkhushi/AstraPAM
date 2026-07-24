@@ -9,7 +9,7 @@ import streamlit as st
 
 import _sidebar
 
-st.set_page_config(page_title="Logs & Reports", page_icon="📋", layout="wide")
+st.set_page_config(page_title="AstraPAM · Logs & Reports", page_icon="🛡", layout="wide")
 API = _sidebar.API_URL
 
 _sidebar.render_page_header(

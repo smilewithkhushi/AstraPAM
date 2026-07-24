@@ -22,15 +22,14 @@ st.set_page_config(
 init_db()
 
 
-_hcol, _logo_col = st.columns([6, 1])
+_logo_col, _hcol = st.columns([1, 6])
+with _logo_col:
+    st.image("preview/logo-astrapam.jpeg", width=180)
 with _hcol:
     _sidebar.render_page_header(
-        "🛡", "AstraPAM",
-        "Privileged access management for Indian core banking. Zero standing privilege, real-time risk scoring, cryptographic audit.",
+        "", "AstraPAM",
+        " Privileged Access Management (PAM) system built for Indian core banking. Offers Zero standing privilege, real-time risk scoring and cryptographic audit.",
     )
-with _logo_col:
-    st.image("preview/logo-astrapam.jpeg", width=90)
-
 try:
     broker.expire_stale()
     active_grants = broker.get_active_grants()
@@ -45,13 +44,60 @@ _left, _right = st.columns([3, 2])
 
 with _left:
     st.subheader("System Health")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Audit Chain",           "Intact" if cs["valid"] else "BROKEN",
-              help=f"{cs['length']} signed records")
-    m2.metric("Active JIT Grants",     len(active_grants),
-              help="Zero = no standing access anywhere in the system")
-    m3.metric("Reconciliation Alerts", len(all_alerts))
-    m4.metric("Critical Alerts",       critical_count)
+
+    st.markdown(
+        """
+        <style>
+        .metric-card {
+            border: 1.5px solid #4a90d9;
+            border-radius: 10px;
+            padding: 16px 18px 12px 18px;
+            background: rgba(74, 144, 217, 0.04);
+        }
+        .metric-card .label {
+            font-size: 0.78rem;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        .metric-card .value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: inherit;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    row1_c1, row1_c2 = st.columns(2)
+    with row1_c1:
+        st.markdown(
+            f'<div class="metric-card"><div class="label">Audit Chain</div>'
+            f'<div class="value">{"Intact" if cs["valid"] else "BROKEN"}</div></div>',
+            unsafe_allow_html=True,
+        )
+    with row1_c2:
+        st.markdown(
+            f'<div class="metric-card"><div class="label">Active JIT Grants</div>'
+            f'<div class="value">{len(active_grants)}</div></div>',
+            unsafe_allow_html=True,
+        )
+
+    st.write("")
+
+    row2_c1, row2_c2 = st.columns(2)
+    with row2_c1:
+        st.markdown(
+            f'<div class="metric-card"><div class="label">Reconciliation Alerts</div>'
+            f'<div class="value">{len(all_alerts)}</div></div>',
+            unsafe_allow_html=True,
+        )
+    with row2_c2:
+        st.markdown(
+            f'<div class="metric-card"><div class="label">Critical Alerts</div>'
+            f'<div class="value">{critical_count}</div></div>',
+            unsafe_allow_html=True,
+        )
 
     if cs["valid"]:
         st.success(f"Audit log is intact. {cs['length']} records, nothing altered.")
