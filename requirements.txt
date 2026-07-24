@@ -23,6 +23,7 @@ plotly>=5.0.0
 
 # dev
 ruff==0.15.21
+pytest>=8.0
 
 # reporting (phase 10)
 fpdf2==2.8.3
