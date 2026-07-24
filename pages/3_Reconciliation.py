@@ -124,7 +124,7 @@ with tab_mon:
 
         st.dataframe(
             pd.DataFrame(records),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "Status":        st.column_config.TextColumn("Status",          width="medium"),
@@ -168,7 +168,7 @@ with tab_mon:
             })
         st.dataframe(
             pd.DataFrame(rows),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "Severity":           st.column_config.TextColumn("Severity",           width="small"),
@@ -188,7 +188,7 @@ with tab_sim:
         "and a tampered entry where the ledger amount doesn't match the action."
     )
 
-    sim1, sim2, sim3, sim4 = st.columns([1.5, 1.5, 1.5, 1])
+    sim1, sim2, sim3, sim4 = st.columns([1, 1, 1, 1])
 
     with sim1:
         with st.container(border=True):
@@ -285,7 +285,11 @@ with tab_sim:
     with sim4:
         with st.container(border=True):
             st.markdown("**Run Check**")
-            st.caption("Cross-check all actions against the ledger and raise alerts for any unmatched gaps.")
+            st.caption(
+                "Cross-checks every privileged action against the core ledger and raises alerts "
+                "for any gaps. Run this after simulating the scenarios above to see unmatched "
+                "entries flagged as alerts."
+            )
             if st.button("Run reconciliation", width="stretch", type="primary"):
                 try:
                     reconcile.sync_from_cbs()

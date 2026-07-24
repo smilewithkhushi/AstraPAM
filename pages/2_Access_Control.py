@@ -30,17 +30,19 @@ _sidebar.render_page_header(
     "Nobody gets permanent access to anything. The super-admin in AstraPAM checks every request in real time and access expires automatically. Zero active grants indicate a secure system.",
 )
 
+with st.expander("📖 JIT Access lifecycle", expanded=False):
+        st.image(
+            "preview/diagram_zero_standing_privilege_light.png",
+            width="stretch",
+        )
+
 tab_request, tab_grants, tab_audit, tab_emergency = st.tabs([
     "Request Access", "Active JIT Grants", "Audit Log & Keys", "Emergency Access"
 ])
 
 # ── Tab 1: Request Access ─────────────────────────────────────────────────────
 with tab_request:
-    with st.expander("📖 JIT Access lifecycle", expanded=False):
-        st.image(
-            "preview/diagram_zero_standing_privilege_light.png",
-            width="stretch",
-        )
+   
 
     _fa, _fb = st.columns([5, 1])
     if _fb.button("📋 Fill sample data", key="fill_jit_btn"):
@@ -449,7 +451,7 @@ with tab_audit:
                 "Correlation ID": r[9][:20] + "…" if r[9] else "—",
             })
 
-        st.dataframe(pd.DataFrame(records), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(records), width="stretch", hide_index=True)
 
     st.divider()
 

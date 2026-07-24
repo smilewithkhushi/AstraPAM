@@ -134,6 +134,7 @@ _sidebar.render_page_header(
     "This feature catches situations where one person has too much power & access (eg: able to both create and approve a transaction). Every high-value action needs a second person to sign off.",
 )
 
+
 tab_sod, tab_mc = st.tabs(["SoD Conflict Scan", "Maker-Checker Requests"])
 
 # ── SoD Conflict Scan ─────────────────────────────────────────────────────────
@@ -167,7 +168,7 @@ with tab_sod:
 
     _scan_title, _scan_btn_col = st.columns([2, 1])
     _scan_title.subheader("Scan All Users")
-    _run_scan = _scan_btn_col.button("Run Conflict Scan", type="primary", use_container_width=True)
+    _run_scan = _scan_btn_col.button("Run Conflict Scan", type="primary", width="stretch")
 
     if _run_scan:
         try:
@@ -202,7 +203,7 @@ with tab_sod:
                 "Last Scanned":   h["last_scanned_at"][:19].replace("T", " "),
                 "Resolved At":    (h["resolved_at"] or "—")[:19].replace("T", " "),
             })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
         st.caption("Update status of a conflict:")
         _uc1, _uc2, _uc3, _uc4 = st.columns([2, 1, 2, 1])
@@ -219,7 +220,7 @@ with tab_sod:
                                      format_func=lambda s: _STATUS_LABEL[s],
                                      key="new_status")
         _uc4.markdown("&nbsp;", unsafe_allow_html=True)
-        if _uc4.button("Update", key="update_status_btn", use_container_width=True, type="primary"):
+        if _uc4.button("Update", key="update_status_btn", width="stretch", type="primary"):
             _update_conflict_status(_sel_rule, _sel_user, _new_status)
             st.rerun()
 
@@ -232,7 +233,7 @@ with tab_sod:
     selected = _pu_left.selectbox("Select user", user_ids,
                                    format_func=lambda uid: f"{uid}: {roles_module.get_user(uid).name}",
                                    key="per_user_select")
-    _scan_user = _pu_right.button("Scan user", use_container_width=True)
+    _scan_user = _pu_right.button("Scan user", width="stretch")
     if _scan_user:
         try:
             resp = requests.get(f"{API}/sod/conflicts/{selected}", timeout=5)
@@ -261,20 +262,14 @@ with tab_sod:
             "Status":        _STATUS_LABEL.get(h["status"], h["status"]),
             "Last Scanned":  h["last_scanned_at"][:19].replace("T", " "),
         } for h in per_history]
-        st.dataframe(pd.DataFrame(per_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(per_rows), width="stretch", hide_index=True)
 
 # ── Maker-Checker ─────────────────────────────────────────────────────────────
 with tab_mc:
     _mc_left, _mc_right = st.columns(2, gap="large")
 
     with _mc_left:
-        _ml_title, _ml_fill = st.columns([4, 1])
-        _ml_title.subheader("Initiate a Transaction")
-        if _ml_fill.button("📋 Fill data", key="fill_maker_btn"):
-            st.session_state["mc_maker_id"] = "user_004"
-            st.session_state["mc_amount"]   = 500000.0
-            st.session_state["mc_cid"]      = "DEMO-TXN-PNB-001"
-            st.rerun()
+        st.subheader("Initiate a Transaction")
         st.caption("The person who submits a transaction cannot also approve it. Amounts above ₹1,00,000 require a separate checker to sign off before they go through.")
 
         with st.form("maker_form"):
@@ -313,26 +308,7 @@ with tab_mc:
             st.json(data)
 
     with _mc_right:
-        _mr_title, _mr_fill = st.columns([4, 1])
-        _mr_title.subheader("Approve or Reject")
-        if _mr_fill.button("📋 Fill data", key="fill_checker_btn"):
-            _con_fill = sqlite3.connect(DB_PATH)
-            _latest = _con_fill.execute(
-                "SELECT request_id, maker_id FROM maker_checker_reqs"
-                " WHERE status='SUBMITTED' ORDER BY created_at DESC LIMIT 1"
-            ).fetchone()
-            _con_fill.close()
-            if _latest:
-                st.session_state["mc_req_id"] = _latest[0]
-                _all_uids = [u.user_id for u in roles_module.get_all_users()]
-                st.session_state["mc_checker_id"] = next(
-                    (u for u in _all_uids if u != _latest[1]), "user_006"
-                )
-            else:
-                st.session_state["mc_req_id"] = ""
-                st.session_state["mc_checker_id"] = "user_006"
-            st.session_state["mc_decision"] = "Approve"
-            st.rerun()
+        st.subheader("Approve or Reject")
         st.caption("Must be a different person from whoever submitted. If you try to approve your own transaction, it gets blocked automatically.")
 
         with st.form("checker_form"):
@@ -385,7 +361,7 @@ with tab_mc:
     st.divider()
     _list_title, _list_btn = st.columns([5, 1])
     _list_title.subheader("All Maker-Checker Requests")
-    _list_btn.button("Refresh", use_container_width=True)
+    _list_btn.button("Refresh", width="stretch")
 
     try:
         resp = requests.get(f"{API}/maker-checker/list", timeout=5)
@@ -426,6 +402,6 @@ with tab_mc:
             })
         st.dataframe(
             pd.DataFrame(rows),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
