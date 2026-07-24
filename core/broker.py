@@ -29,14 +29,47 @@ THROTTLE_CAP      = float(os.getenv("THROTTLE_RATE_CAP", "1000.0"))
 _now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+# ── request logging ───────────────────────────────────────────────────────────
+
+def _log_request(
+    user_id: str,
+    target: str,
+    action_type: str,
+    decision: str,
+    risk_score: float,
+    attack_tags: list,
+    correlation_id: str,
+    grant_id: str | None = None,
+    break_glass: bool = False,
+) -> None:
+    import json as _json
+    con = sqlite3.connect(DB_PATH)
+    con.execute(
+        "INSERT INTO access_request_log"
+        " (log_id, user_id, target, action_type, decision, risk_score, attack_tags,"
+        "  grant_id, break_glass, correlation_id, requested_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            str(uuid.uuid4()), user_id, target, action_type, decision,
+            risk_score, _json.dumps(attack_tags),
+            grant_id, int(break_glass), correlation_id, _now().isoformat(),
+        ),
+    )
+    con.commit()
+    con.close()
+
+
 # ── CBS interaction ───────────────────────────────────────────────────────────
 
 def _provision(grant_id: str, user_id: str, rate_cap: float | None) -> None:
-    httpx.post(
-        f"{CBS_URL}/accounts/provision",
-        json={"grant_id": grant_id, "user_id": user_id, "rate_cap": rate_cap},
-        timeout=5,
-    ).raise_for_status()
+    try:
+        httpx.post(
+            f"{CBS_URL}/accounts/provision",
+            json={"grant_id": grant_id, "user_id": user_id, "rate_cap": rate_cap},
+            timeout=5,
+        ).raise_for_status()
+    except Exception:
+        pass  # CBS unavailable — grant persists in SQLite as source of truth
 
 
 def _revoke_on_cbs(grant_id: str) -> None:
@@ -79,6 +112,8 @@ def request_access(req: AccessRequest, session_features: dict[str, float]) -> di
     result: RiskResult = risk_engine.score(session_features)
 
     if result.decision == "deny":
+        _log_request(req.user_id, req.target, req.action_type, "deny",
+                     result.score, result.attack_tags, req.correlation_id)
         return {
             "status": "denied",
             "score": result.score,
@@ -87,8 +122,8 @@ def request_access(req: AccessRequest, session_features: dict[str, float]) -> di
         }
 
     if result.decision == "step_up":
-        # Production: trigger MFA / out-of-band approval flow.
-        # Demo: return challenge; grant is not issued until /access/approve.
+        _log_request(req.user_id, req.target, req.action_type, "step_up",
+                     result.score, result.attack_tags, req.correlation_id)
         return {
             "status": "step_up_required",
             "score": result.score,
@@ -123,6 +158,9 @@ def request_access(req: AccessRequest, session_features: dict[str, float]) -> di
         role = _roles.get_role(bank_user.role_id)
         role_name = role.name if role else bank_user.role_id
         branch = bank_user.branch_sol
+
+    _log_request(req.user_id, req.target, req.action_type, result.decision,
+                 result.score, result.attack_tags, cid, grant_id=grant.grant_id)
 
     crypto.append_audit(json.dumps({
         "event": "grant_issued",
@@ -221,6 +259,10 @@ def break_glass_access(user_id: str, target: str, justification: str,
     _save(con, grant)
     con.commit()
     con.close()
+
+    _log_request(user_id, target, "admin", result.decision,
+                 result.score, result.attack_tags, cid,
+                 grant_id=grant.grant_id, break_glass=True)
 
     crypto.append_audit(json.dumps({
         "event":           "break_glass_grant",

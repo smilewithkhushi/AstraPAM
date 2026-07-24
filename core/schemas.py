@@ -312,6 +312,31 @@ def init_db() -> None:
             source_ip           TEXT NOT NULL DEFAULT '',
             failure_reason      TEXT
         );
+        CREATE TABLE IF NOT EXISTS access_request_log (
+            log_id          TEXT PRIMARY KEY,
+            user_id         TEXT NOT NULL,
+            target          TEXT NOT NULL,
+            action_type     TEXT NOT NULL DEFAULT '',
+            decision        TEXT NOT NULL,
+            risk_score      REAL NOT NULL,
+            attack_tags     TEXT NOT NULL DEFAULT '[]',
+            grant_id        TEXT,
+            break_glass     INTEGER NOT NULL DEFAULT 0,
+            correlation_id  TEXT NOT NULL DEFAULT '',
+            requested_at    TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS sod_conflicts (
+            rule_id             TEXT NOT NULL,
+            user_id             TEXT NOT NULL,
+            entitlement_a       TEXT NOT NULL,
+            entitlement_b       TEXT NOT NULL,
+            severity            TEXT NOT NULL,
+            status              TEXT NOT NULL DEFAULT 'UNRESOLVED',
+            first_detected_at   TEXT NOT NULL,
+            last_scanned_at     TEXT NOT NULL,
+            resolved_at         TEXT,
+            PRIMARY KEY (rule_id, user_id)
+        );
     """)
     con.commit()
 

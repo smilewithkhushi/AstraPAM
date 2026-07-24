@@ -1,11 +1,129 @@
 """Phase 7 — Segregation of Duties conflict detection + maker-checker enforcement."""
 from __future__ import annotations
 
+import sqlite3
+import uuid
+from datetime import datetime, timezone
+
 import requests
 import streamlit as st
 
 import _sidebar
 from core import roles as roles_module
+from core.schemas import DB_PATH, init_db
+
+init_db()
+
+# ── SQLite helpers ────────────────────────────────────────────────────────────
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _upsert_conflicts(conflicts: list[dict]) -> None:
+    now = _now()
+    con = sqlite3.connect(DB_PATH)
+    for c in conflicts:
+        existing = con.execute(
+            "SELECT first_detected_at, status FROM sod_conflicts WHERE rule_id=? AND user_id=?",
+            (c["rule_id"], c["user_id"]),
+        ).fetchone()
+        if existing:
+            first_detected, current_status = existing
+            # preserve status if already actioned; update last_scanned_at
+            con.execute(
+                "UPDATE sod_conflicts SET last_scanned_at=?, entitlement_a=?, entitlement_b=?, severity=?"
+                " WHERE rule_id=? AND user_id=?",
+                (now, c["entitlement_a"], c["entitlement_b"], c["severity"],
+                 c["rule_id"], c["user_id"]),
+            )
+        else:
+            con.execute(
+                "INSERT INTO sod_conflicts"
+                " (rule_id, user_id, entitlement_a, entitlement_b, severity, status, first_detected_at, last_scanned_at)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                (c["rule_id"], c["user_id"], c["entitlement_a"], c["entitlement_b"],
+                 c["severity"], "UNRESOLVED", now, now),
+            )
+    con.commit()
+    con.close()
+
+
+def _load_sod_history() -> list[dict]:
+    con = sqlite3.connect(DB_PATH)
+    rows = con.execute(
+        "SELECT rule_id, user_id, entitlement_a, entitlement_b, severity, status,"
+        " first_detected_at, last_scanned_at, resolved_at"
+        " FROM sod_conflicts ORDER BY last_scanned_at DESC"
+    ).fetchall()
+    con.close()
+    cols = ("rule_id", "user_id", "entitlement_a", "entitlement_b", "severity",
+            "status", "first_detected_at", "last_scanned_at", "resolved_at")
+    return [dict(zip(cols, r)) for r in rows]
+
+
+def _update_conflict_status(rule_id: str, user_id: str, new_status: str) -> None:
+    con = sqlite3.connect(DB_PATH)
+    resolved_at = _now() if new_status == "RESOLVED" else None
+    con.execute(
+        "UPDATE sod_conflicts SET status=?, resolved_at=? WHERE rule_id=? AND user_id=?",
+        (new_status, resolved_at, rule_id, user_id),
+    )
+    con.commit()
+    con.close()
+
+
+def _mc_submit(user_id: str, amount: float, correlation_id: str) -> dict:
+    cid    = correlation_id.strip() or str(uuid.uuid4())
+    req_id = str(uuid.uuid4())
+    now    = _now()
+    con    = sqlite3.connect(DB_PATH)
+    con.execute(
+        "INSERT INTO maker_checker_reqs"
+        " (request_id, correlation_id, maker_id, checker_id, action_type, amount, status, created_at, decided_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?)",
+        (req_id, cid, user_id, None, "financial_transfer", amount, "SUBMITTED", now, None),
+    )
+    con.commit()
+    con.close()
+    return {"status": "SUBMITTED", "request_id": req_id, "correlation_id": cid}
+
+
+def _mc_decide(request_id: str, checker_id: str, approve: bool) -> dict:
+    con = sqlite3.connect(DB_PATH)
+    row = con.execute(
+        "SELECT maker_id, status FROM maker_checker_reqs WHERE request_id=?",
+        (request_id,),
+    ).fetchone()
+    if not row:
+        con.close()
+        return {"status": "NOT_FOUND", "request_id": request_id}
+    maker_id, current_status = row
+    if current_status in ("APPROVED", "REJECTED"):
+        con.close()
+        return {"status": "ALREADY_DECIDED", "request_id": request_id, "current_status": current_status}
+    if maker_id == checker_id:
+        con.close()
+        return {"status": "SELF_APPROVAL_BLOCKED", "request_id": request_id}
+    new_status = "APPROVED" if approve else "REJECTED"
+    con.execute(
+        "UPDATE maker_checker_reqs SET checker_id=?, status=?, decided_at=? WHERE request_id=?",
+        (checker_id, new_status, _now(), request_id),
+    )
+    con.commit()
+    con.close()
+    return {"request_id": request_id, "status": new_status, "checker_id": checker_id}
+
+
+def _mc_list() -> list[dict]:
+    con = sqlite3.connect(DB_PATH)
+    rows = con.execute(
+        "SELECT request_id, correlation_id, maker_id, checker_id, amount, status, created_at"
+        " FROM maker_checker_reqs ORDER BY created_at DESC"
+    ).fetchall()
+    con.close()
+    cols = ("request_id", "correlation_id", "maker_id", "checker_id", "amount", "status", "created_at")
+    return [dict(zip(cols, r)) for r in rows]
 
 st.set_page_config(page_title="AstraPAM · SoD & Maker-Checker", page_icon="🛡", layout="wide")
 
@@ -35,66 +153,123 @@ with tab_sod:
 
     st.divider()
 
-    _scan_left, _scan_right = st.columns(2)
+    import pandas as pd
 
-    with _scan_left:
-        st.subheader("Scan All Users")
+    _SEVERITY_BADGE = {"critical": "🔴 CRITICAL", "high": "🟠 HIGH", "medium": "🟡 MEDIUM"}
+    _STATUS_LABEL = {
+        "UNRESOLVED":        "🔴 Unresolved",
+        "UNDER_REVIEW":      "🟡 Under Review",
+        "ESCALATED":         "🟠 Escalated to CISO",
+        "EXCEPTION_APPROVED":"🔵 Exception Approved",
+        "RESOLVED":          "✅ Resolved",
+    }
+    _VALID_STATUSES = list(_STATUS_LABEL.keys())
 
-        if st.button("Run Conflict Scan", type="primary"):
-            try:
-                resp = requests.get(f"{API}/sod/conflicts", timeout=5)
-                conflicts = resp.json() if resp.ok else []
-            except Exception:
-                conflicts = [c.model_dump() for c in roles_module.scan_all_conflicts()]
+    _scan_title, _scan_btn_col = st.columns([2, 1])
+    _scan_title.subheader("Scan All Users")
+    _run_scan = _scan_btn_col.button("Run Conflict Scan", type="primary", use_container_width=True)
 
-            if not conflicts:
-                st.success("No SoD conflicts detected across all users.")
-            else:
-                st.error(f"**{len(conflicts)} SoD conflict(s) detected.**")
-                for c in conflicts:
-                    badge = "🔴" if c["severity"] == "critical" else "🟠"
-                    user = roles_module.get_user(c["user_id"])
-                    name = user.name if user else c["user_id"]
-                    st.markdown(
-                        f"{badge} **{c['rule_id']}** · **{c['severity'].upper()}**: "
-                        f"**{name}** (`{c['user_id']}`) holds both "
-                        f"`{c['entitlement_a']}` + `{c['entitlement_b']}`"
-                    )
-                    if c["rule_id"] == "SOD-001":
-                        st.warning(
-                            "This user can create and approve Letters of Undertaking, with no one else in the loop, leaving a gap for potential fraud."
-                        )
+    if _run_scan:
+        try:
+            resp = requests.get(f"{API}/sod/conflicts", timeout=5)
+            fresh = resp.json() if resp.ok else []
+        except Exception:
+            fresh = [c.model_dump() for c in roles_module.scan_all_conflicts()]
+        _upsert_conflicts(fresh)
+        if not fresh:
+            st.success("No SoD conflicts detected. All clear.")
 
+    # always load from DB so results persist across reruns
+    history = _load_sod_history()
+    if history:
+        unresolved = [h for h in history if h["status"] not in ("RESOLVED", "EXCEPTION_APPROVED")]
+        if unresolved:
+            has_sod001 = any(h["rule_id"] == "SOD-001" for h in unresolved)
+            st.error(f"**{len(unresolved)} active conflict(s) on record.**")
+           
+        rows = []
+        for h in history:
+            user = roles_module.get_user(h["user_id"])
+            name = user.name if user else h["user_id"]
+            rows.append({
+                "Rule ID":        h["rule_id"],
+                "Severity":       _SEVERITY_BADGE.get(h["severity"], h["severity"].upper()),
+                "User":           f"{name} ({h['user_id']})",
+                "Entitlement A":  h["entitlement_a"],
+                "Entitlement B":  h["entitlement_b"],
+                "Status":         _STATUS_LABEL.get(h["status"], h["status"]),
+                "First Detected": h["first_detected_at"][:19].replace("T", " "),
+                "Last Scanned":   h["last_scanned_at"][:19].replace("T", " "),
+                "Resolved At":    (h["resolved_at"] or "—")[:19].replace("T", " "),
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-    with _scan_right:
-        st.subheader("Per-User Scan")
-        user_ids = [u.user_id for u in roles_module.get_all_users()]
-        selected = st.selectbox("Select user", user_ids,
-                                format_func=lambda uid: f"{uid}: {roles_module.get_user(uid).name}")
-        if st.button("Scan user"):
-            try:
-                resp = requests.get(f"{API}/sod/conflicts/{selected}", timeout=5)
-                conflicts = resp.json() if resp.ok else []
-            except Exception:
-                u = roles_module.get_user(selected)
-                conflicts = [c.model_dump() for c in roles_module.scan_sod_conflicts(u)] if u else []
+        st.caption("Update status of a conflict:")
+        _uc1, _uc2, _uc3, _uc4 = st.columns([2, 1, 2, 1])
+        _sel_user = _uc1.selectbox(
+            "User", [h["user_id"] for h in history],
+            format_func=lambda uid: f"{uid}: {roles_module.get_user(uid).name if roles_module.get_user(uid) else uid}",
+            key="status_user",
+        )
+        _sel_rule = _uc2.selectbox(
+            "Rule", [h["rule_id"] for h in history if h["user_id"] == _sel_user],
+            key="status_rule",
+        )
+        _new_status = _uc3.selectbox("New status", _VALID_STATUSES,
+                                     format_func=lambda s: _STATUS_LABEL[s],
+                                     key="new_status")
+        _uc4.markdown("&nbsp;", unsafe_allow_html=True)
+        if _uc4.button("Update", key="update_status_btn", use_container_width=True, type="primary"):
+            _update_conflict_status(_sel_rule, _sel_user, _new_status)
+            st.rerun()
 
-            if not conflicts:
-                st.success(f"No SoD conflicts for {selected}.")
-            else:
-                for c in conflicts:
-                    badge = "🔴" if c["severity"] == "critical" else "🟠"
-                    st.error(
-                        f"{badge} **{c['rule_id']}** ({c['severity'].upper()}): "
-                        f"`{c['entitlement_a']}` + `{c['entitlement_b']}`"
-                    )
+    st.divider()
+
+    _pu_title, _pu_btn_col = st.columns([2, 1])
+    _pu_title.subheader("Per-User Scan")
+    user_ids = [u.user_id for u in roles_module.get_all_users()]
+    _pu_left, _pu_right = st.columns([2, 1])
+    selected = _pu_left.selectbox("Select user", user_ids,
+                                   format_func=lambda uid: f"{uid}: {roles_module.get_user(uid).name}",
+                                   key="per_user_select")
+    _scan_user = _pu_right.button("Scan user", use_container_width=True)
+    if _scan_user:
+        try:
+            resp = requests.get(f"{API}/sod/conflicts/{selected}", timeout=5)
+            per_conflicts = resp.json() if resp.ok else []
+        except Exception:
+            u = roles_module.get_user(selected)
+            per_conflicts = [c.model_dump() for c in roles_module.scan_sod_conflicts(u)] if u else []
+        _upsert_conflicts(per_conflicts)
+
+    # load this user's history from DB
+    per_history = [h for h in _load_sod_history() if h["user_id"] == selected]
+    if not per_history:
+        st.info(f"No conflicts on record for {roles_module.get_user(selected).name if roles_module.get_user(selected) else selected}. Run a scan to check.")
+    else:
+        uname = roles_module.get_user(selected)
+        active = [h for h in per_history if h["status"] not in ("RESOLVED", "EXCEPTION_APPROVED")]
+        if active:
+            st.error(f"**{len(active)} active conflict(s) for {uname.name if uname else selected}.**")
+        else:
+            st.success(f"All conflicts for {uname.name if uname else selected} are resolved.")
+        per_rows = [{
+            "Rule ID":       h["rule_id"],
+            "Severity":      _SEVERITY_BADGE.get(h["severity"], h["severity"].upper()),
+            "Entitlement A": h["entitlement_a"],
+            "Entitlement B": h["entitlement_b"],
+            "Status":        _STATUS_LABEL.get(h["status"], h["status"]),
+            "Last Scanned":  h["last_scanned_at"][:19].replace("T", " "),
+        } for h in per_history]
+        st.dataframe(pd.DataFrame(per_rows), use_container_width=True, hide_index=True)
 
 # ── Maker-Checker ─────────────────────────────────────────────────────────────
 with tab_mc:
-    _mc_left, _mc_right = st.columns(2)
+    _mc_left, _mc_right = st.columns(2, gap="large")
 
     with _mc_left:
         st.subheader("Initiate a Transaction")
+        st.caption("The person who submits a transaction cannot also approve it. Amounts above ₹1,00,000 require a separate checker to sign off before they go through.")
 
         with st.form("maker_form"):
             maker_id = st.selectbox(
@@ -116,21 +291,19 @@ with tab_mc:
                 }, timeout=5)
                 if resp.ok:
                     data = resp.json()
-                    if data["status"] == "APPROVED":
-                        st.success(
-                            f"Auto-approved. Within maker's authorisation limit. "
-                            f"Correlation ID: `{data['correlation_id']}`"
-                        )
-                    else:
-                        st.warning(
-                            f"Pending checker approval. Request ID: `{data['request_id']}` · "
-                            f"Correlation ID: `{data['correlation_id']}`"
-                        )
-                    st.json(data)
                 else:
-                    st.error(f"API error {resp.status_code}: {resp.text}")
-            except Exception as e:
-                st.error(f"Cannot reach API: {e}")
+                    raise ValueError(resp.text)
+            except Exception:
+                data = _mc_submit(maker_id, amount, cid_in)
+            if data["status"] == "SUBMITTED":
+                st.success(
+                    f"Transaction submitted. Awaiting checker approval.  \n"
+                    f"Request ID: `{data['request_id']}`  \n"
+                    f"Correlation ID: `{data['correlation_id']}`"
+                )
+            else:
+                st.info(str(data))
+            st.json(data)
 
     with _mc_right:
         st.subheader("Approve or Reject")
@@ -155,35 +328,76 @@ with tab_mc:
                 }, timeout=5)
                 if resp.ok:
                     data = resp.json()
-                    status = data["status"]
-                    if status == "SELF_APPROVAL_BLOCKED":
-                        st.error("🚫 You cannot approve your own transaction.")
-                    elif status == "APPROVED":
-                        st.success(f"✅ Approved by {checker_id}.")
-                    else:
-                        st.warning(f"Rejected by {checker_id}.")
-                    st.json(data)
                 else:
-                    st.error(f"API error {resp.status_code}: {resp.text}")
-            except Exception as e:
-                st.error(f"Cannot reach API: {e}")
+                    raise ValueError(resp.text)
+            except Exception:
+                data = _mc_decide(req_id_in, checker_id, approve)
+            status = data["status"]
+            if status == "ALREADY_DECIDED":
+                already = data.get("current_status", "decided")
+                st.warning(
+                    f"⚠️ This request is already **{already}** and cannot be updated again. "
+                    f"Each request can only be decided once."
+                )
+            elif status == "SELF_APPROVAL_BLOCKED":
+                st.error(
+                    "🚫 **Self-approval blocked.** The maker and checker must be different people. "
+                    "Note: if the table shows this request as APPROVED, it was auto-approved at "
+                    "submission because the amount was within the maker's authorisation limit — "
+                    "that approval is separate from this blocked checker attempt."
+                )
+            elif status == "NOT_FOUND":
+                st.error(f"Request ID `{req_id_in}` not found.")
+            elif status == "APPROVED":
+                st.success(f"✅ Approved by {roles_module.get_user(checker_id).name if roles_module.get_user(checker_id) else checker_id}.")
+            elif status == "REJECTED":
+                st.warning(f"❌ Rejected by {roles_module.get_user(checker_id).name if roles_module.get_user(checker_id) else checker_id}.")
+            st.json(data)
 
     st.divider()
-    st.subheader("All Maker-Checker Requests")
-    if st.button("Refresh list"):
-        try:
-            resp = requests.get(f"{API}/maker-checker/list", timeout=5)
-            reqs = resp.json() if resp.ok else []
-        except Exception:
-            reqs = []
-        if not reqs:
-            st.info("No requests yet.")
-        else:
-            for r in reqs:
-                status_icon = {"APPROVED": "✅", "REJECTED": "❌",
-                               "SELF_APPROVAL_BLOCKED": "🚫", "PENDING": "⏳"}.get(r["status"], "?")
-                st.markdown(
-                    f"{status_icon} `{r['request_id'][:8]}…` | "
-                    f"Maker: `{r['maker_id']}` | Checker: `{r['checker_id'] or '—'}` | "
-                    f"₹`{r['amount']}` | **{r['status']}**"
-                )
+    _list_title, _list_btn = st.columns([5, 1])
+    _list_title.subheader("All Maker-Checker Requests")
+    _list_btn.button("Refresh", use_container_width=True)
+
+    try:
+        resp = requests.get(f"{API}/maker-checker/list", timeout=5)
+        all_reqs = resp.json() if resp.ok else []
+        if not all_reqs:
+            raise ValueError
+    except Exception:
+        all_reqs = _mc_list()
+
+    if not all_reqs:
+        st.info("No requests yet.")
+    else:
+        _status_icon = {
+            "SUBMITTED": "📨 Submitted",
+            "APPROVED":  "✅ Approved",
+            "REJECTED":  "❌ Rejected",
+            "SELF_APPROVAL_BLOCKED": "🚫 Blocked",
+            "PENDING":   "⏳ Pending",
+        }
+
+        def _name(uid: str | None) -> str:
+            if not uid:
+                return "—"
+            u = roles_module.get_user(uid)
+            return f"{u.name} ({uid})" if u else uid
+
+        import pandas as pd
+        rows = []
+        for r in all_reqs:
+            rows.append({
+                "Request ID":     r.get("request_id") or "—",
+                "Correlation ID": r.get("correlation_id") or "—",
+                "Maker":          _name(r.get("maker_id")),
+                "Checker":        _name(r.get("checker_id")),
+                "Amount (₹)":     f"₹{r.get('amount', 0):,.2f}",
+                "Status":         _status_icon.get(r.get("status", ""), r.get("status", "")),
+                "Submitted At":   r.get("created_at", "—"),
+            })
+        st.dataframe(
+            pd.DataFrame(rows),
+            use_container_width=True,
+            hide_index=True,
+        )
